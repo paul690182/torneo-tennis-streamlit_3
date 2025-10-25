@@ -1,21 +1,27 @@
 
 import streamlit as st
+from postgrest import PostgrestClient
 from supabase_config import SUPABASE_URL, SUPABASE_KEY
-from supabase import create_client
 
 # Connessione a Supabase
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+client = PostgrestClient(f"{SUPABASE_URL}/rest/v1", headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"})
 
-st.title("Torneo Tennis - Classifica e Storico")
+st.title("Classifica Torneo Tennis")
 
 # Lettura classifica
-classifica = supabase.table("classifica").select("*").execute()
-if classifica.data:
-    st.subheader("Classifica")
-    st.table(classifica.data)
+try:
+    classifica = client.from_('classifica').select('*').execute().data
+    if classifica:
+        st.subheader("Classifica")
+        st.table(classifica)
+except Exception as e:
+    st.error(f"Errore nel recupero della classifica: {e}")
 
 # Lettura storico
-storico = supabase.table("storico").select("*").execute()
-if storico.data:
-    st.subheader("Storico Partite")
-    st.table(storico.data)
+try:
+    storico = client.from_('storico').select('*').execute().data
+    if storico:
+        st.subheader("Storico Partite")
+        st.table(storico)
+except Exception as e:
+    st.error(f"Errore nel recupero dello storico: {e}")

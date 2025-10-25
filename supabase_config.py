@@ -1,3 +1,3 @@
 
-SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_URL = "https://your-project-id.supabase.co"
 SUPABASE_KEY = "your-anon-or-service-role-key"
