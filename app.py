@@ -1,36 +1,45 @@
 
 import streamlit as st
-import psycopg2
-import os
+from db import inserisci_partita, get_classifica, get_storico
 
-st.set_page_config(page_title="Torneo Tennis", layout="wide")
+st.set_page_config(page_title="Torneo Tennis", layout="centered")
+st.title("🎾 Torneo di Tennis")
 
-st.sidebar.title("🔧 Debug & Configurazione")
+st.header("Inserisci Risultato Partita")
 
-# Mostra variabili d'ambiente utili
-st.sidebar.subheader("Variabili d'ambiente")
-db_url = os.environ.get("SUPABASE_DB_URL", "❌ Non trovata")
-st.sidebar.text(f"SUPABASE_DB_URL:
-{db_url}")
+giocatori = [
+    "Paolo R.", "Paola C.", "Francesco M.", "Massimo B.",
+    "Daniele T.", "Simone V.", "Gianni F.", "Leo S.",
+    "Maura F.", "Giovanni D.", "Andrea P.", "Maurizio P."
+]
 
-# Connessione al database PostgreSQL (Supabase)
-conn = None
-try:
-    if db_url == "❌ Non trovata":
-        raise ValueError("Variabile SUPABASE_DB_URL non impostata")
+col1, col2 = st.columns(2)
+with col1:
+    giocatore1 = st.selectbox("Giocatore 1", giocatori)
+with col2:
+    giocatore2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != giocatore1])
 
-    conn = psycopg2.connect(db_url)
-    cursor = conn.cursor()
-    st.sidebar.success("✅ Connessione a Supabase riuscita")
+set1 = st.text_input("Set 1 (es. 6-4)")
+set2 = st.text_input("Set 2 (es. 3-6)")
+set3 = st.text_input("Set 3 (opzionale, es. 7-5)", value="")
 
-except Exception as e:
-    st.sidebar.error("❌ Errore nella connessione a Supabase")
-    st.sidebar.code(str(e))
+if st.button("Salva Risultato"):
+    try:
+        inserisci_partita(giocatore1, giocatore2, set1, set2, set3)
+        st.success("✅ Partita salvata correttamente!")
+    except Exception as e:
+        st.error(f"❌ Errore nel salvataggio: {e}")
 
-# Esempio di utilizzo del database (solo se connessione riuscita)
-if conn:
-    st.title("🎾 Torneo Tennis - Tutti contro tutti")
-    st.write("Qui puoi visualizzare la classifica e inserire i risultati.")
-    # ... qui va il resto della tua logica per visualizzare e aggiornare i dati ...
+st.header("📊 Classifica")
+classifica = get_classifica()
+if classifica and classifica.data:
+    st.table(classifica.data)
 else:
-    st.warning("Connessione al database non disponibile. Controlla le impostazioni.")
+    st.info("Nessuna partita registrata.")
+
+st.header("📜 Storico Partite")
+storico = get_storico()
+if storico and storico.data:
+    st.table(storico.data)
+else:
+    st.info("Nessuna partita registrata.")

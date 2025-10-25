@@ -1,0 +1,7 @@
+
+services:
+  - type: web
+    name: torneo-tennis-streamlit
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run app.py"
