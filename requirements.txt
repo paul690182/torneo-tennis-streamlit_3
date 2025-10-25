@@ -1,4 +1,5 @@
+
 streamlit
-supabase-py
+supabase
 python-dotenv
 requests
