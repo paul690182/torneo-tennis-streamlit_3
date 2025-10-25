@@ -7,6 +7,7 @@ st.title("🎾 Torneo di Tennis")
 
 st.header("Inserisci Risultato Partita")
 
+# Lista giocatori (puoi sostituirla con quella reale)
 giocatori = [
     "Paolo R.", "Paola C.", "Francesco M.", "Massimo B.",
     "Daniele T.", "Simone V.", "Gianni F.", "Leo S.",
@@ -32,14 +33,14 @@ if st.button("Salva Risultato"):
 
 st.header("📊 Classifica")
 classifica = get_classifica()
-if classifica and classifica.data:
-    st.table(classifica.data)
+if classifica and 'data' in classifica:
+    st.table(classifica['data'])
 else:
     st.info("Nessuna partita registrata.")
 
 st.header("📜 Storico Partite")
 storico = get_storico()
-if storico and storico.data:
-    st.table(storico.data)
+if storico and 'data' in storico:
+    st.table(storico['data'])
 else:
     st.info("Nessuna partita registrata.")
