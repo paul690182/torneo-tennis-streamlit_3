@@ -1,103 +1,67 @@
-import asyncio
-from postgrest import AsyncPostgrestClient
+
 import streamlit as st
-from supabase_config import SUPABASE_URL, SUPABASE_KEY
-from collections import defaultdict
 import pandas as pd
+from supabase import create_client, Client
+from datetime import date
+from superbase import SUPABASE_URL, SUPABASE_KEY
 
-# Funzione per calcolare la classifica
-def calcola_classifica(partite):
-    classifica = defaultdict(lambda: {"punti": 0, "vittorie": 0, "sconfitte": 0, "giocate": 0})
+# Connessione a Supabase
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    for partita in partite:
-        try:
-            g1 = partita["giocatore1"]
-            g2 = partita["giocatore2"]
-            p1 = partita["punteggio_g1"]
-            p2 = partita["punteggio_g2"]
-        except KeyError:
-            continue
+st.title("Torneo Tennis - Inserimento Partite e Classifica")
 
-        classifica[g1]["giocate"] += 1
-        classifica[g2]["giocate"] += 1
+# Recupera i dati esistenti
+data_response = supabase.table("partite_classifica").select("*").execute()
+df = pd.DataFrame(data_response.data)
 
-        if p1 == 2 and p2 == 0:
-            classifica[g1]["punti"] += 3
-            classifica[g1]["vittorie"] += 1
-            classifica[g2]["sconfitte"] += 1
-        elif p1 == 2 and p2 == 1:
-            classifica[g1]["punti"] += 3
-            classifica[g1]["vittorie"] += 1
-            classifica[g2]["punti"] += 1
-            classifica[g2]["sconfitte"] += 1
-        elif p2 == 2 and p1 == 0:
-            classifica[g2]["punti"] += 3
-            classifica[g2]["vittorie"] += 1
-            classifica[g1]["sconfitte"] += 1
-        elif p2 == 2 and p1 == 1:
-            classifica[g2]["punti"] += 3
-            classifica[g2]["vittorie"] += 1
-            classifica[g1]["punti"] += 1
-            classifica[g1]["sconfitte"] += 1
+# Selezione giocatori
+giocatori = pd.unique(df[['giocatore1', 'giocatore2']].values.ravel('K'))
 
-    classifica_ordinata = sorted(classifica.items(), key=lambda x: x[1]["punti"], reverse=True)
-    return classifica_ordinata
+with st.form("inserimento_partita"):
+    st.subheader("Inserisci una nuova partita")
+    g1 = st.selectbox("Giocatore 1", giocatori)
+    g2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != g1])
+    set1 = st.text_input("Set 1 (es. 6-4)")
+    set2 = st.text_input("Set 2 (es. 4-6)")
+    set3 = st.text_input("Set 3 (opzionale)")
+    punteggio_g1 = st.number_input("Punteggio Giocatore 1", min_value=0, max_value=3, step=1)
+    punteggio_g2 = st.number_input("Punteggio Giocatore 2", min_value=0, max_value=3, step=1)
+    vincitore = st.selectbox("Vincitore", [g1, g2])
+    data_partita = st.date_input("Data della partita", value=date.today())
+    submitted = st.form_submit_button("Inserisci Partita")
 
-# Funzione per recuperare i dati da Supabase
-async def fetch_data():
-    client = AsyncPostgrestClient(f"{SUPABASE_URL}/rest/v1", headers={
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}"
-    })
-    try:
-        partite_response = await client.from_("partite_classifica").select("*").execute()
-        return partite_response
-    except Exception as e:
-        st.error(f"Errore nel recupero dei dati: {e}")
-        return None
+    if submitted:
+        supabase.table("partite_classifica").insert({
+            "giocatore1": g1,
+            "giocatore2": g2,
+            "set1": set1,
+            "set2": set2,
+            "set3": set3 if set3 else None,
+            "punteggio_g1": punteggio_g1,
+            "punteggio_g2": punteggio_g2,
+            "vincitore": vincitore,
+            "data_partita": str(data_partita)
+        }).execute()
+        st.success("Partita inserita correttamente!")
 
-# Funzione principale dell'app
-async def main():
-    st.title("Torneo Tennis - Classifica e Storico")
+# Visualizza lo storico partite
+st.subheader("Storico Partite")
+if df.empty:
+    st.info("Nessuna partita registrata.")
+else:
+    for _, row in df.iterrows():
+        st.markdown(f"**{row['giocatore1']} vs {row['giocatore2']}**")
+        punteggi = [row['set1'], row['set2'], row['set3']]
+        punteggi = [s for s in punteggi if s]
+        st.write("Set giocati:", ", ".join(punteggi))
+        st.write(f"Punteggio: {row['punteggio_g1']} - {row['punteggio_g2']}")
+        st.write(f"Vincitore: {row['vincitore']}")
+        st.write(f"Data: {row['data_partita']}")
+        st.markdown("---")
 
-    partite_response = await fetch_data()
-
-    if partite_response and hasattr(partite_response, 'data'):
-        partite = partite_response.data
-        df = pd.DataFrame(partite)
-
-        if not df.empty and 'giocatore1' in df.columns and 'giocatore2' in df.columns:
-            giocatori = sorted(set(df['giocatore1'].dropna().unique()).union(df['giocatore2'].dropna().unique()))
-            giocatore_selezionato = st.selectbox("Filtra per giocatore", ["Tutti"] + giocatori)
-        else:
-            giocatore_selezionato = "Tutti"
-
-        if 'data_partita' in df.columns:
-            df['data_partita'] = pd.to_datetime(df['data_partita'], errors='coerce')
-            data_min = df['data_partita'].min()
-            data_max = df['data_partita'].max()
-            data_selezionata = st.date_input("Filtra per data", value=data_max.date() if pd.notnull(data_max) else None)
-        else:
-            data_selezionata = None
-
-        if giocatore_selezionato != "Tutti":
-            df = df[(df['giocatore1'] == giocatore_selezionato) | (df['giocatore2'] == giocatore_selezionato)]
-
-        if data_selezionata:
-            df = df[df['data_partita'].dt.date == data_selezionata]
-
-        classifica = calcola_classifica(df.to_dict(orient='records'))
-
-        st.subheader("Classifica")
-        st.table([{"Giocatore": g, **stats} for g, stats in classifica])
-
-        st.subheader("Storico Partite")
-        colonne_da_mostrare = ["data_partita", "giocatore1", "giocatore2", "set1", "set2", "set3", "punteggio_g1", "punteggio_g2", "vincitore"]
-        colonne_presenti = [col for col in colonne_da_mostrare if col in df.columns]
-        st.dataframe(df[colonne_presenti])
-    else:
-        st.warning("Dati non disponibili.")
-
-# Avvia l'app
-if __name__ == "__main__":
-    asyncio.run(main())
+# Calcola classifica
+st.subheader("Classifica")
+if not df.empty:
+    classifica = df['vincitore'].value_counts().reset_index()
+    classifica.columns = ['Giocatore', 'Partite Vinte']
+    st.table(classifica.sort_values(by='Partite Vinte', ascending=False))
