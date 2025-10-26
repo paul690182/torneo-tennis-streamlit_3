@@ -2,9 +2,9 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
-from datetime import date
-from superbase import SUPABASE_URL, SUPABASE_KEY
-
+import os
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 # Connessione a Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
