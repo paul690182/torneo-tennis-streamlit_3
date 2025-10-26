@@ -1,4 +1,2 @@
-
 streamlit
-postgrest-py
-supabase-py
+supabase
