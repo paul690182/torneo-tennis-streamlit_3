@@ -22,6 +22,23 @@ if df.empty:
 else:
     giocatori = pd.unique(df[['giocatore1', 'giocatore2']].values.ravel('K'))
 
+# Funzione per calcolare punteggi dai set
+def calcola_punteggi(set1, set2, set3):
+    punteggi_g1 = 0
+    punteggi_g2 = 0
+    set_list = [set1, set2, set3]
+    for s in set_list:
+        if s:
+            try:
+                g1_score, g2_score = map(int, s.split("-"))
+                if g1_score > g2_score:
+                    punteggi_g1 += 1
+                elif g2_score > g1_score:
+                    punteggi_g2 += 1
+            except:
+                pass
+    return punteggi_g1, punteggi_g2
+
 # Form inserimento partita
 if len(giocatori) == 0:
     st.warning("Nessun giocatore disponibile. Inserisci almeno una partita manualmente nel database.")
@@ -33,24 +50,23 @@ else:
         set1 = st.text_input("Set 1 (es. 6-4)")
         set2 = st.text_input("Set 2 (es. 4-6)")
         set3 = st.text_input("Set 3 (opzionale)")
-        punteggio_g1 = st.number_input("Punteggio Giocatore 1", min_value=0, max_value=3, step=1)
-        punteggio_g2 = st.number_input("Punteggio Giocatore 2", min_value=0, max_value=3, step=1)
-        vincitore = st.selectbox("Vincitore", [g1, g2])
         data_partita = st.date_input("Data della partita", value=date.today())
-        submitted = st.form_submit_button("Inserisci Partita")
+        salva = st.form_submit_button("Salva Partita")
 
-        if submitted:
-            if punteggio_g1 == punteggio_g2:
+        if salva:
+            pg1, pg2 = calcola_punteggi(set1, set2, set3)
+            if pg1 == pg2:
                 st.error("I punteggi non possono essere uguali. Deve esserci un vincitore.")
             else:
+                vincitore = g1 if pg1 > pg2 else g2
                 supabase.table("partite_classifica").insert({
                     "giocatore1": g1,
                     "giocatore2": g2,
                     "set1": set1,
                     "set2": set2,
                     "set3": set3 if set3 else None,
-                    "punteggio_g1": punteggio_g1,
-                    "punteggio_g2": punteggio_g2,
+                    "punteggio_g1": pg1,
+                    "punteggio_g2": pg2,
                     "vincitore": vincitore,
                     "data_partita": str(data_partita)
                 }).execute()
