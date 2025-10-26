@@ -1,11 +1,17 @@
 
-from datetime import date
 import streamlit as st
 import pandas as pd
+from datetime import date
+import os
+from supabase import create_client, Client
+
+# Configura Supabase tramite variabili d'ambiente
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("Torneo Tennis - Inserimento Partite e Classifica")
 
-# Funzione per calcolare i punteggi dai set
 def calcola_punteggi(set1, set2, set3):
     punteggi_g1 = 0
     punteggi_g2 = 0
@@ -21,15 +27,13 @@ def calcola_punteggi(set1, set2, set3):
                 continue
     return punteggi_g1, punteggi_g2
 
-# Lista giocatori
-lista_giocatori = ["Paolo R.", "Paola C.", "Francesco M.", "Massimo B.", "Daniele T.", "Simone V.",
-                   "Gianni F.", "Leo S.", "Maura F.", "Giovanni D.", "Andrea P.", "Maurizio P."]
+giocatori = ["Paolo R.", "Paola C.", "Francesco M.", "Massimo B.", "Daniele T.", "Simone V.",
+             "Gianni F.", "Leo S.", "Maura F.", "Giovanni D.", "Andrea P.", "Maurizio P."]
 
-# Sezione inserimento partita
 st.subheader("Inserisci una nuova partita")
 with st.form("inserimento_partita"):
-    giocatore1 = st.selectbox("Giocatore 1", lista_giocatori)
-    giocatore2 = st.selectbox("Giocatore 2", [g for g in lista_giocatori if g != giocatore1])
+    giocatore1 = st.selectbox("Giocatore 1", giocatori)
+    giocatore2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != giocatore1])
     set1 = st.text_input("Set 1 (es. 6-3)")
     set2 = st.text_input("Set 2 (es. 3-6)")
     set3 = st.text_input("Set 3 (opzionale, es. 6-4)")
@@ -37,39 +41,30 @@ with st.form("inserimento_partita"):
     submit = st.form_submit_button("Salva partita")
 
     if submit:
+        pg1, pg2 = calcola_punteggi(set1, set2, set3)
+        vincitore = giocatore1 if pg1 > pg2 else giocatore2
         nuova_partita = {
             "giocatore1": giocatore1,
             "giocatore2": giocatore2,
             "set1": set1,
             "set2": set2,
             "set3": set3,
-            "data_partita": str(data_partita)
+            "data_partita": str(data_partita),
+            "punteggio_g1": pg1,
+            "punteggio_g2": pg2,
+            "vincitore": vincitore
         }
+        supabase.table("partite").insert(nuova_partita).execute()
         st.success("Partita inserita con successo!")
-        st.write("Dati inseriti:", nuova_partita)
-        # Qui andrà il codice per salvare su Supabase
 
-# Simulazione partite esistenti (da sostituire con dati da Supabase)
-partite = [
-    {"giocatore1": "Paolo R.", "giocatore2": "Francesco M.", "set1": "6-4", "set2": "6-3", "set3": "", "data_partita": "2025-10-25"},
-    {"giocatore1": "Davide P.", "giocatore2": "Sara T.", "set1": "6-0", "set2": "0-6", "set3": "6-3", "data_partita": "2025-10-26"}
-]
+# Rilettura dei dati da Supabase
+response = supabase.table("partite").select("*").execute()
+partite = response.data if response.data else []
 
-# Calcolo punteggi e vincitori
-for p in partite:
-    pg1, pg2 = calcola_punteggi(p['set1'], p['set2'], p['set3'])
-    p['punteggio_g1'] = pg1
-    p['punteggio_g2'] = pg2
-    p['vincitore'] = p['giocatore1'] if pg1 > pg2 else p['giocatore2']
+if partite:
+    df = pd.DataFrame(partite)
 
-# Costruzione DataFrame
-df = pd.DataFrame(partite)
-
-# Visualizzazione dello storico
-st.subheader("Storico Partite")
-if df.empty:
-    st.info("Nessuna partita registrata.")
-else:
+    st.subheader("Storico Partite")
     partite_label = df.apply(lambda row: f"{row['giocatore1']} vs {row['giocatore2']} ({row['data_partita']})", axis=1)
     selezione = st.selectbox("Seleziona una partita", partite_label)
     partita = df.iloc[partite_label[partite_label == selezione].index[0]]
@@ -81,28 +76,29 @@ else:
     st.write(f"Vincitore: {partita['vincitore']}")
     st.write(f"Data: {partita['data_partita']}")
 
-# Calcolo classifica
-st.subheader("Classifica")
-punti = {}
-for _, row in df.iterrows():
-    g1 = row['giocatore1']
-    g2 = row['giocatore2']
-    pg1 = row['punteggio_g1']
-    pg2 = row['punteggio_g2']
+    st.subheader("Classifica")
+    punti = {}
+    for _, row in df.iterrows():
+        g1 = row['giocatore1']
+        g2 = row['giocatore2']
+        pg1 = row['punteggio_g1']
+        pg2 = row['punteggio_g2']
 
-    punti[g1] = punti.get(g1, 0)
-    punti[g2] = punti.get(g2, 0)
+        punti[g1] = punti.get(g1, 0)
+        punti[g2] = punti.get(g2, 0)
 
-    if pg1 == 2 and pg2 == 0:
-        punti[g1] += 3
-    elif pg1 == 0 and pg2 == 2:
-        punti[g2] += 3
-    elif pg1 == 2 and pg2 == 1:
-        punti[g1] += 3
-        punti[g2] += 1
-    elif pg1 == 1 and pg2 == 2:
-        punti[g2] += 3
-        punti[g1] += 1
+        if pg1 == 2 and pg2 == 0:
+            punti[g1] += 3
+        elif pg1 == 0 and pg2 == 2:
+            punti[g2] += 3
+        elif pg1 == 2 and pg2 == 1:
+            punti[g1] += 3
+            punti[g2] += 1
+        elif pg1 == 1 and pg2 == 2:
+            punti[g2] += 3
+            punti[g1] += 1
 
-classifica_df = pd.DataFrame(list(punti.items()), columns=["Giocatore", "Punti"])
-st.table(classifica_df.sort_values(by="Punti", ascending=False))
+    classifica_df = pd.DataFrame(list(punti.items()), columns=["Giocatore", "Punti"])
+    st.table(classifica_df.sort_values(by="Punti", ascending=False))
+else:
+    st.info("Nessuna partita registrata.")
