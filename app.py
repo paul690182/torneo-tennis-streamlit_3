@@ -1,12 +1,11 @@
 
+from datetime import date
 import streamlit as st
 import pandas as pd
-from datetime import date
 
 st.title("Torneo Tennis - Inserimento Partite e Classifica")
 
 # Funzione per calcolare i punteggi dai set
-
 def calcola_punteggi(set1, set2, set3):
     punteggi_g1 = 0
     punteggi_g2 = 0
@@ -22,7 +21,35 @@ def calcola_punteggi(set1, set2, set3):
                 continue
     return punteggi_g1, punteggi_g2
 
-# Simulazione dati partite
+# Lista giocatori
+lista_giocatori = ["Paolo R.", "Paola C.", "Francesco M.", "Massimo B.", "Daniele T.", "Simone V.",
+                   "Gianni F.", "Leo S.", "Maura F.", "Giovanni D.", "Andrea P.", "Maurizio P."]
+
+# Sezione inserimento partita
+st.subheader("Inserisci una nuova partita")
+with st.form("inserimento_partita"):
+    giocatore1 = st.selectbox("Giocatore 1", lista_giocatori)
+    giocatore2 = st.selectbox("Giocatore 2", [g for g in lista_giocatori if g != giocatore1])
+    set1 = st.text_input("Set 1 (es. 6-3)")
+    set2 = st.text_input("Set 2 (es. 3-6)")
+    set3 = st.text_input("Set 3 (opzionale, es. 6-4)")
+    data_partita = st.date_input("Data della partita", value=date.today())
+    submit = st.form_submit_button("Salva partita")
+
+    if submit:
+        nuova_partita = {
+            "giocatore1": giocatore1,
+            "giocatore2": giocatore2,
+            "set1": set1,
+            "set2": set2,
+            "set3": set3,
+            "data_partita": str(data_partita)
+        }
+        st.success("Partita inserita con successo!")
+        st.write("Dati inseriti:", nuova_partita)
+        # Qui andrà il codice per salvare su Supabase
+
+# Simulazione partite esistenti (da sostituire con dati da Supabase)
 partite = [
     {"giocatore1": "Paolo R.", "giocatore2": "Francesco M.", "set1": "6-4", "set2": "6-3", "set3": "", "data_partita": "2025-10-25"},
     {"giocatore1": "Davide P.", "giocatore2": "Sara T.", "set1": "6-0", "set2": "0-6", "set3": "6-3", "data_partita": "2025-10-26"}
@@ -38,7 +65,7 @@ for p in partite:
 # Costruzione DataFrame
 df = pd.DataFrame(partite)
 
-# Visualizzazione dello storico tramite menu a tendina
+# Visualizzazione dello storico
 st.subheader("Storico Partite")
 if df.empty:
     st.info("Nessuna partita registrata.")
