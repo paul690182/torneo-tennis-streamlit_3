@@ -54,11 +54,11 @@ with st.form("inserimento_partita"):
             "punteggio_g2": pg2,
             "vincitore": vincitore
         }
-        supabase.table("partite").insert(nuova_partita).execute()
+        supabase.table("partite_classifica").insert(nuova_partita).execute()
         st.success("Partita inserita con successo!")
 
 # Rilettura dei dati da Supabase
-response = supabase.table("partite").select("*").execute()
+response = supabase.table("partite_classifica").select("*").execute()
 partite = response.data if response.data else []
 
 if partite:
