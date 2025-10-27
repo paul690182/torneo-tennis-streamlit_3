@@ -1,14 +1,1 @@
-id,giocatore1,giocatore2,set1,set2,set3,punteggio_g1,punteggio_g2,vincitore,data_partita
-06a5e7e7-ea74-4484-b6db-d06a93c855cf,Maurizio P.,Paolo R.,5-7,7-5,6-0,2,1,Maurizio P.,2025-10-26
-0dfa8da4-5845-4106-a56c-6b4975597be9,Davide P.,Sara T.,6-0,0-6,6-3,2,1,Davide P.,2025-10-26
-1ffc88a4-e207-4664-bf2c-35cf1c3f6a4c,Chiara G.,Paolo R.,7-5,6-3,,2,0,Chiara G.,2025-10-26
-255aa6e8-16f1-43f5-8758-801a7f6d1fbb,Paolo R.,Francesco M.,6-3,6-4,,2,0,Paolo R.,2025-10-25
-37281c5a-9e75-4fc7-9f96-e9093204237f,Davide P.,Chiara G.,6-7,7-6,6-4,2,1,Davide P.,2025-10-27
-41aa6e48-301f-43d2-9df7-cfbaa9e955d4,Elisa N.,Marco C.,6-0,6-1,,2,0,Elisa N.,2025-10-27
-4806c9e2-68de-42d9-a887-32843874d6fa,Andrea P.,Paolo R.,6-0,6-0,,2,0,Andrea P.,2025-10-26
-57ed9ac4-9f2f-4886-a15f-bcfa32257589,Paolo R.,Francesco M.,6-3,6-4,,2,0,Paolo R.,2025-10-25
-5d7ef267-3754-4dac-95ca-3257d8bfd254,Davide P.,Paolo R.,6-0,6-0,,2,0,Davide P.,2025-10-26
-767f6720-ff3a-4c00-9a5a-ff34b5048a18,Luca B.,Sara T.,4-6,6-3,7-6,2,1,Luca B.,2025-10-26
-7c5d9165-b94c-429e-b2a0-727c40bfb1e5,Massimo B.,Paolo R.,6-0,6-3,,2,0,Massimo B.,2025-10-26
-9ccc02f2-a227-4c32-a6f6-20d497b61bc2,Paolo R.,Paola C.,1-6,1-6,,0,2,Paola C.,2025-10-27
-e6e309ec-7415-410e-ba6d-386f5b04abd3,Maura F.,Giovanni D.,7-5,1-6,6-4,2,1,Maura F.,2025-10-26
+Giocatore 1,Giocatore 2,Set 1,Set 2,Set 3,Vincitore
