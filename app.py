@@ -5,7 +5,7 @@ from supabase import create_client, Client
 
 # Inserisci qui le tue credenziali Supabase
 SUPABASE_URL = "https://urrkxfohjpsdxlzicsye.supabase.co"
-SUPABASE_KEY = "<INSERISCI QUI LA TUA ANON KEY>"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVycmt4Zm9oanBzZHhsemljc3llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzMjY4OTcsImV4cCI6MjA3NjkwMjg5N30.7kn4pX-sunIYkeP35lzK57nCvI4HoSqwjGu8j0ZOvRk"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
