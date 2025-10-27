@@ -1,30 +1,32 @@
 import streamlit as st
-import pandas as pd
 from datetime import date
 import uuid
-import os
+from supabase import create_client, Client
 
-CSV_FILE = "app_updated_partite.csv"
+# Inserisci qui le tue credenziali Supabase
+SUPABASE_URL = "https://<TUO_PROJECT_ID>.supabase.co"
+SUPABASE_KEY = "<TUO_ANON_KEY>"
 
-@st.cache_data
-def carica_partite():
-    if not os.path.exists(CSV_FILE):
-        # Crea un DataFrame vuoto con le colonne necessarie
-        df_vuoto = pd.DataFrame(columns=[
-            "id", "giocatore1", "giocatore2", "set1", "set2", "set3",
-            "punteggio_g1", "punteggio_g2", "vincitore", "data_partita"
-        ])
-        df_vuoto.to_csv(CSV_FILE, index=False)
-    return pd.read_csv(CSV_FILE)
-
-df = carica_partite()
-
-giocatori = sorted(set(df['giocatore1']).union(set(df['giocatore2'])))
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("🎾 Torneo Tennis - Inserimento Risultati")
 
-g1 = st.selectbox("Giocatore 1", giocatori)
-g2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != g1])
+@st.cache_data
+def carica_giocatori():
+    response = supabase.table("partite").select("giocatore1", "giocatore2").execute()
+    rows = response.data
+    g1_list = [r["giocatore1"] for r in rows if r["giocatore1"]]
+    g2_list = [r["giocatore2"] for r in rows if r["giocatore2"]]
+    return sorted(set(g1_list + g2_list))
+
+giocatori = carica_giocatori()
+
+if giocatori:
+    g1 = st.selectbox("Giocatore 1", giocatori)
+    g2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != g1])
+else:
+    g1 = st.text_input("Inserisci nome Giocatore 1")
+    g2 = st.text_input("Inserisci nome Giocatore 2")
 
 set1 = st.text_input("Set 1 (es. 6-4)")
 set2 = st.text_input("Set 2 (es. 3-6)")
@@ -44,14 +46,20 @@ def calcola_punteggi(s1, s2, s3):
                 pass
     return g1_vinti, g2_vinti
 
-def partita_duplicata(df, g1, g2):
-    return not df[((df['giocatore1'] == g1) & (df['giocatore2'] == g2)) |
-                  ((df['giocatore1'] == g2) & (df['giocatore2'] == g1))].empty
+def partita_duplicata(g1, g2):
+    response = supabase.table("partite").select("giocatore1", "giocatore2").execute()
+    rows = response.data
+    for r in rows:
+        if (r["giocatore1"] == g1 and r["giocatore2"] == g2) or (r["giocatore1"] == g2 and r["giocatore2"] == g1):
+            return True
+    return False
 
 if st.button("💾 Salva partita"):
     if g1 == g2:
         st.error("❌ I due giocatori devono essere diversi.")
-    elif partita_duplicata(df, g1, g2):
+    elif not g1 or not g2:
+        st.error("❌ Inserisci entrambi i nomi dei giocatori.")
+    elif partita_duplicata(g1, g2):
         st.warning("⚠️ Partita già inserita tra questi due giocatori.")
     else:
         p1, p2 = calcola_punteggi(set1, set2, set3)
@@ -68,6 +76,5 @@ if st.button("💾 Salva partita"):
             "vincitore": vincitore,
             "data_partita": str(date.today())
         }
-        df = pd.concat([df, pd.DataFrame([nuova_riga])], ignore_index=True)
-        df.to_csv(CSV_FILE, index=False)
+        supabase.table("partite").insert(nuova_riga).execute()
         st.success(f"✅ Partita salvata! Vincitore: {vincitore}")
