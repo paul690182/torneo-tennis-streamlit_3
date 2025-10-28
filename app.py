@@ -1,7 +1,6 @@
-import streamlit as st
-from supabase import create_client, Client
+
 import os
-import pandas as pd
+from supabase import create_client, Client
 
 # --- Connessione a Supabase ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -24,43 +23,20 @@ def calcola_punti(set1, set2, set3):
     else:
         return (0, 0)
 
-# --- Interfaccia Streamlit ---
-st.title("Torneo Tennis - Inserimento Partita e Classifica")
+# --- Recupera tutte le partite ---
+response = supabase.table("partite_completo").select("*").execute()
+partite = response.data
 
-with st.form("inserimento_partita"):
-    giocatore1 = st.text_input("Giocatore 1")
-    giocatore2 = st.text_input("Giocatore 2")
-    set1 = st.text_input("Set 1 (es. 6-4)")
-    set2 = st.text_input("Set 2 (es. 3-6)")
-    set3 = st.text_input("Set 3 (opzionale, es. 6-3)", value="")
-    submitted = st.form_submit_button("Inserisci Partita")
-
-    if submitted:
+# --- Aggiorna ogni riga con punti calcolati se mancanti ---
+for partita in partite:
+    if 'punti_g1' not in partita or 'punti_g2' not in partita:
+        set1 = partita.get("set1", "")
+        set2 = partita.get("set2", "")
+        set3 = partita.get("set3", "")
         punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
-        data = {
-            "giocatore1": giocatore1,
-            "giocatore2": giocatore2,
-            "set1": set1,
-            "set2": set2,
-            "set3": set3,
+        supabase.table("partite_completo").update({
             "punti_g1": punti_g1,
             "punti_g2": punti_g2
-        }
-        supabase.table("partite_completo").insert(data).execute()
-        st.success("Partita inserita correttamente!")
+        }).eq("id", partita["id"]).execute()
 
-# --- Calcolo classifica ---
-partite = supabase.table("partite_completo").select("*").execute().data
-
-classifica = {}
-for p in partite:
-    g1 = p['giocatore1']
-    g2 = p['giocatore2']
-    classifica[g1] = classifica.get(g1, 0) + p['punti_g1']
-    classifica[g2] = classifica.get(g2, 0) + p['punti_g2']
-
-# --- Mostra classifica ---
-st.subheader("Classifica aggiornata")
-df_classifica = pd.DataFrame(list(classifica.items()), columns=["Giocatore", "Punti"])
-df_classifica = df_classifica.sort_values(by="Punti", ascending=False)
-st.table(df_classifica)
+print("Aggiornamento completato.")
