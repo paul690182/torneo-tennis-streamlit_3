@@ -7,8 +7,8 @@ from datetime import date
 from supabase import create_client
 
 # --- Configurazione Supabase ---
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.getenv https://urrkxfohjpsdxlzicsye.supabase.co
+SUPABASE_KEY = os.getenv eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVycmt4Zm9oanBzZHhsemljc3llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzMjY4OTcsImV4cCI6MjA3NjkwMjg5N30.7kn4pX-sunIYkeP35lzK57nCvI4HoSqwjGu8j0ZOvRk
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("🏆 Torneo Tennis - Inserimento Risultati & Classifica")
