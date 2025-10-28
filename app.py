@@ -1,92 +1,66 @@
-
 import streamlit as st
-import pandas as pd
+from supabase import create_client, Client
 import os
-import uuid
-from datetime import date
-from supabase import create_client
+import pandas as pd
 
-# --- Configurazione Supabase ---
-
+# --- Connessione a Supabase ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-st.title("🏆 Torneo Tennis - Inserimento Risultati & Classifica")
+# --- Funzione per calcolare i punti ---
+def calcola_punti(set1, set2, set3):
+    g1_vinti = sum([int(s.split('-')[0]) > int(s.split('-')[1]) for s in [set1, set2, set3] if s])
+    g2_vinti = sum([int(s.split('-')[1]) > int(s.split('-')[0]) for s in [set1, set2, set3] if s])
 
-# --- Lista fissa dei 12 giocatori ---
-giocatori = [
-    "Federico", "Giuseppe", "Marco", "Luca", "Alessandro", "Davide",
-    "Simone", "Francesco", "Matteo", "Andrea", "Stefano", "Paolo"
-]
-
-# --- Form inserimento partita ---
-st.subheader("Inserisci nuova partita")
-
-giocatore1 = st.selectbox("Giocatore 1", giocatori)
-giocatore2 = st.selectbox("Giocatore 2", giocatori)
-set1 = st.text_input("Set 1 (es. 6-4)")
-set2 = st.text_input("Set 2 (es. 3-6)")
-set3 = st.text_input("Set 3 (opzionale)", "")
-
-# --- Calcolo punteggi ---
-def calcola_punteggi(s1, s2, s3):
-    g1_vinti = g2_vinti = 0
-    for s in [s1, s2, s3]:
-        if "-" in s:
-            try:
-                a, b = map(int, s.strip().split("-"))
-                if a > b:
-                    g1_vinti += 1
-                elif b > a:
-                    g2_vinti += 1
-            except:
-                pass
-    return g1_vinti, g2_vinti
-
-# --- Controllo duplicati ---
-def partita_duplicata(g1, g2):
-    response = supabase.table("partite").select("giocatore1", "giocatore2").execute()
-    rows = response.data
-    for r in rows:
-        if (r["giocatore1"] == g1 and r["giocatore2"] == g2) or (r["giocatore1"] == g2 and r["giocatore2"] == g1):
-            return True
-    return False
-
-# --- Salvataggio partita ---
-if st.button("💾 Salva partita"):
-    if giocatore1 == giocatore2:
-        st.error("❌ I due giocatori devono essere diversi.")
-    elif partita_duplicata(giocatore1, giocatore2):
-        st.warning("⚠️ Partita già inserita tra questi due giocatori.")
+    if g1_vinti == 2 and g2_vinti == 0:
+        return (3, 0)
+    elif g2_vinti == 2 and g1_vinti == 0:
+        return (0, 3)
+    elif g1_vinti == 2 and g2_vinti == 1:
+        return (3, 1)
+    elif g2_vinti == 2 and g1_vinti == 1:
+        return (1, 3)
     else:
-        p1, p2 = calcola_punteggi(set1, set2, set3)
-        vincitore = giocatore1 if p1 > p2 else giocatore2
-        nuova_riga = {
-            "id": str(uuid.uuid4()),
+        return (0, 0)
+
+# --- Interfaccia Streamlit ---
+st.title("Torneo Tennis - Inserimento Partita e Classifica")
+
+with st.form("inserimento_partita"):
+    giocatore1 = st.text_input("Giocatore 1")
+    giocatore2 = st.text_input("Giocatore 2")
+    set1 = st.text_input("Set 1 (es. 6-4)")
+    set2 = st.text_input("Set 2 (es. 3-6)")
+    set3 = st.text_input("Set 3 (opzionale, es. 6-3)", value="")
+    submitted = st.form_submit_button("Inserisci Partita")
+
+    if submitted:
+        punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
+        data = {
             "giocatore1": giocatore1,
             "giocatore2": giocatore2,
             "set1": set1,
             "set2": set2,
             "set3": set3,
-            "punteggio_g1": p1,
-            "punteggio_g2": p2,
-            "vincitore": vincitore,
-            "data_partita": str(date.today())
+            "punti_g1": punti_g1,
+            "punti_g2": punti_g2
         }
-        supabase.table("partite").insert(nuova_riga).execute()
-        st.success(f"✅ Partita salvata! Vincitore: {vincitore}")
+        supabase.table("partite_completo").insert(data).execute()
+        st.success("Partita inserita correttamente!")
 
-# --- Classifica aggregata ---
+# --- Calcolo classifica ---
+partite = supabase.table("partite_completo").select("*").execute().data
+
+classifica = {}
+for p in partite:
+    g1 = p['giocatore1']
+    g2 = p['giocatore2']
+    classifica[g1] = classifica.get(g1, 0) + p['punti_g1']
+    classifica[g2] = classifica.get(g2, 0) + p['punti_g2']
+
+# --- Mostra classifica ---
 st.subheader("Classifica aggiornata")
-response = supabase.table("partite").select("giocatore1", "giocatore2", "punteggio_g1", "punteggio_g2").execute()
-if response.data:
-    df = pd.DataFrame(response.data)
-    punti = {}
-    for _, row in df.iterrows():
-        punti[row["giocatore1"]] = punti.get(row["giocatore1"], 0) + row["punteggio_g1"]
-        punti[row["giocatore2"]] = punti.get(row["giocatore2"], 0) + row["punteggio_g2"]
-    classifica = pd.DataFrame(list(punti.items()), columns=["Giocatore", "Punti"]).sort_values(by="Punti", ascending=False)
-    st.dataframe(classifica)
-else:
-    st.info("Nessuna partita registrata ancora.")
+df_classifica = pd.DataFrame(list(classifica.items()), columns=["Giocatore", "Punti"])
+df_classifica = df_classifica.sort_values(by="Punti", ascending=False)
+st.table(df_classifica)
