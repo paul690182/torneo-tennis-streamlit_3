@@ -1,11 +1,27 @@
-
 import os
+import streamlit as st
 from supabase import create_client, Client
+import pandas as pd
+
+# --- Configurazione porta per Render ---
+port = int(os.environ.get("PORT", 8501))
 
 # --- Connessione a Supabase ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("Variabili d'ambiente mancanti: SUPABASE_URL o SUPABASE_KEY")
+    st.stop()
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Lista giocatori ---
+giocatori = [
+    "Paolo R.", "Paola C.", "Francesco M.", "Massimo B.", "Daniele T.",
+    "Simone V.", "Gianni F.", "Leo S.", "Maura F.", "Giovanni D.",
+    "Andrea P.", "Maurizio P."
+]
 
 # --- Funzione per calcolare i punti ---
 def calcola_punti(set1, set2, set3):
@@ -23,20 +39,51 @@ def calcola_punti(set1, set2, set3):
     else:
         return (0, 0)
 
-# --- Recupera tutte le partite ---
+# --- UI Streamlit ---
+st.title("🏆 Torneo Tennis - Inserisci Risultati e Classifica")
+
+# --- Form inserimento partita ---
+st.subheader("Inserisci risultato partita")
+with st.form("inserisci_partita"):
+    g1 = st.selectbox("Giocatore 1", giocatori)
+    g2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != g1])
+    set1 = st.text_input("Set 1 (es. 6-4)")
+    set2 = st.text_input("Set 2 (es. 3-6)")
+    set3 = st.text_input("Set 3 (opzionale, es. 6-4)")
+    submit = st.form_submit_button("Salva risultato")
+
+if submit:
+    punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
+    data = {
+        "giocatore1": g1,
+        "giocatore2": g2,
+        "set1": set1,
+        "set2": set2,
+        "set3": set3,
+        "punti_g1": punti_g1,
+        "punti_g2": punti_g2
+    }
+    supabase.table("partite_completo").insert(data).execute()
+    st.success("✅ Risultato salvato con successo!")
+
+# --- Storico partite ---
+st.subheader("📜 Storico partite")
 response = supabase.table("partite_completo").select("*").execute()
 partite = response.data
+if partite:
+    df = pd.DataFrame(partite)
+    st.dataframe(df)
+else:
+    st.info("Nessuna partita registrata.")
 
-# --- Aggiorna ogni riga con punti calcolati se mancanti ---
-for partita in partite:
-    if 'punti_g1' not in partita or 'punti_g2' not in partita:
-        set1 = partita.get("set1", "")
-        set2 = partita.get("set2", "")
-        set3 = partita.get("set3", "")
-        punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
-        supabase.table("partite_completo").update({
-            "punti_g1": punti_g1,
-            "punti_g2": punti_g2
-        }).eq("id", partita["id"]).execute()
+# --- Classifica ---
+st.subheader("🏅 Classifica")
+if partite:
+    classifica = {}
+    for p in partite:
+        classifica[p["giocatore1"]] = classifica.get(p["giocatore1"], 0) + p["punti_g1"]
+        classifica[p["giocatore2"]] = classifica.get(p["giocatore2"], 0) + p["punti_g2"]
 
-print("Aggiornamento completato.")
+    df_classifica = pd.DataFrame(list(classifica.items()), columns=["Giocatore", "Punti"])
+    df_classifica = df_classifica.sort_values(by="Punti", ascending=False)
+    st.table(df_classifica)
