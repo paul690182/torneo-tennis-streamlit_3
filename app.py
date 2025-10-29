@@ -81,8 +81,10 @@ st.subheader("🏅 Classifica")
 if partite:
     classifica = {}
     for p in partite:
-        classifica[p["giocatore1"]] = classifica.get(p["giocatore1"], 0) + p["punti_g1"]
-        classifica[p["giocatore2"]] = classifica.get(p["giocatore2"], 0) + p["punti_g2"]
+        punti_g1 = p.get("punti_g1") or 0
+        punti_g2 = p.get("punti_g2") or 0
+        classifica[p["giocatore1"]] = classifica.get(p["giocatore1"], 0) + punti_g1
+        classifica[p["giocatore2"]] = classifica.get(p["giocatore2"], 0) + punti_g2
 
     df_classifica = pd.DataFrame(list(classifica.items()), columns=["Giocatore", "Punti"])
     df_classifica = df_classifica.sort_values(by="Punti", ascending=False)
