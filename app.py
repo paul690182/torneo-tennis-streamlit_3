@@ -45,26 +45,29 @@ st.title("🏆 Torneo Tennis - Inserisci Risultati e Classifica")
 # --- Form inserimento partita ---
 st.subheader("Inserisci risultato partita")
 with st.form("inserisci_partita"):
-    g1 = st.selectbox("Giocatore 1", giocatori)
-    g2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != g1])
-    set1 = st.text_input("Set 1 (es. 6-4)")
-    set2 = st.text_input("Set 2 (es. 3-6)")
-    set3 = st.text_input("Set 3 (opzionale, es. 6-4)")
+    g1 = st.selectbox("Giocatore 1", giocatori, key="giocatore1")
+    g2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != g1], key="giocatore2")
+    set1 = st.text_input("Set 1 (es. 6-4)", key="set1")
+    set2 = st.text_input("Set 2 (es. 3-6)", key="set2")
+    set3 = st.text_input("Set 3 (opzionale, es. 6-4)", key="set3")
     submit = st.form_submit_button("Salva risultato")
 
 if submit:
-    punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
-    data = {
-        "giocatore1": g1,
-        "giocatore2": g2,
-        "set1": set1,
-        "set2": set2,
-        "set3": set3,
-        "punti_g1": punti_g1,
-        "punti_g2": punti_g2
-    }
-    supabase.table("partite_completo").insert(data).execute()
-    st.success("✅ Risultato salvato con successo!")
+    if g1 == g2:
+        st.error("❌ Giocatore 1 e Giocatore 2 non possono essere uguali!")
+    else:
+        punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
+        data = {
+            "giocatore1": g1,
+            "giocatore2": g2,
+            "set1": set1,
+            "set2": set2,
+            "set3": set3,
+            "punti_g1": punti_g1,
+            "punti_g2": punti_g2
+        }
+        supabase.table("partite_completo").insert(data).execute()
+        st.success(f"✅ Risultato salvato: {g1} vs {g2}")
 
 # --- Storico partite ---
 st.subheader("📜 Storico partite")
