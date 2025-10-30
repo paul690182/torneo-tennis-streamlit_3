@@ -46,7 +46,7 @@ st.title("🏆 Torneo Tennis - Inserisci Risultati e Classifica")
 st.subheader("Inserisci risultato partita")
 with st.form("inserisci_partita"):
     g1 = st.selectbox("Giocatore 1", giocatori, key="giocatore1")
-    g2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != g1], key="giocatore2")
+    g2 = st.selectbox("Giocatore 2", giocatori, key="giocatore2")  # NON filtrato
     set1 = st.text_input("Set 1 (es. 6-4)", key="set1")
     set2 = st.text_input("Set 2 (es. 3-6)", key="set2")
     set3 = st.text_input("Set 3 (opzionale, es. 6-4)", key="set3")
