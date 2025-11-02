@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -5,8 +6,13 @@ from supabase import create_client, Client
 import altair as alt
 
 # --- Configurazione Supabase ---
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL"))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY"))
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("❌ Variabili Supabase mancanti! Controlla secrets o Environment Variables.")
+    st.stop()
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("🏆 Torneo Tennis - Gestione Risultati")
@@ -87,23 +93,33 @@ st.dataframe(df[["giocatore1", "giocatore2", "set1", "set2", "set3", "tipo_vitto
 csv_storico = df.to_csv(index=False).encode('utf-8')
 st.download_button("⬇️ Scarica Storico CSV", csv_storico, "storico_partite.csv", "text/csv")
 
-# --- Calcola classifica ---
-punteggi = pd.concat([
-    df[['giocatore1', 'punti_g1']].rename(columns={'giocatore1': 'giocatore', 'punti_g1': 'punti'}),
-    df[['giocatore2', 'punti_g2']].rename(columns={'giocatore2': 'giocatore', 'punti_g2': 'punti'})
-])
-classifica = punteggi.groupby('giocatore').sum().sort_values(by='punti', ascending=False).reset_index()
-
+# --- Classifica ---
 st.subheader("🏅 Classifica Torneo")
-st.dataframe(classifica)
+
+# ✅ Opzione 1: Leggere direttamente dalla tabella classifica (trigger attivo)
+try:
+    res_classifica = supabase.table("classifica").select("*").order("punti", desc=True).execute()
+    df_classifica = pd.DataFrame(res_classifica.data)
+except:
+    df_classifica = pd.DataFrame()
+
+# ✅ Se la tabella classifica è vuota, calcola dinamicamente
+if df_classifica.empty:
+    punteggi = pd.concat([
+        df[['giocatore1', 'punti_g1']].rename(columns={'giocatore1': 'giocatore', 'punti_g1': 'punti'}),
+        df[['giocatore2', 'punti_g2']].rename(columns={'giocatore2': 'giocatore', 'punti_g2': 'punti'})
+    ])
+    df_classifica = punteggi.groupby('giocatore').sum().sort_values(by='punti', ascending=False).reset_index()
+
+st.dataframe(df_classifica)
 
 # Download CSV classifica
-csv_classifica = classifica.to_csv(index=False).encode('utf-8')
+csv_classifica = df_classifica.to_csv(index=False).encode('utf-8')
 st.download_button("⬇️ Scarica Classifica CSV", csv_classifica, "classifica.csv", "text/csv")
 
 # --- Grafico a barre ---
 st.subheader("📊 Grafico Classifica")
-chart = alt.Chart(classifica).mark_bar().encode(
+chart = alt.Chart(df_classifica).mark_bar().encode(
     x=alt.X('giocatore', sort='-y'),
     y='punti',
     color='giocatore'
