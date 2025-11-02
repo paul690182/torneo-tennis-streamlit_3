@@ -88,7 +88,13 @@ partite = response.data
 
 if partite:
     df = pd.DataFrame(partite)
-    df["created_at"] = pd.to_datetime(df["created_at"])
+
+    # Gestione colonna created_at
+    if "created_at" in df.columns:
+        df["created_at"] = pd.to_datetime(df["created_at"])
+    else:
+        df["created_at"] = datetime.now()
+
     df = df.sort_values(by="created_at", ascending=False)
 
     # Filtri
