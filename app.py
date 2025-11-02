@@ -6,11 +6,11 @@ from supabase import create_client, Client
 import altair as alt
 
 # --- Configurazione Supabase ---
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL"))
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY"))
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("❌ Variabili Supabase mancanti! Controlla secrets o Environment Variables.")
+    st.error("❌ Variabili Supabase mancanti! Assicurati di averle impostate su Render.")
     st.stop()
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -96,7 +96,7 @@ st.download_button("⬇️ Scarica Storico CSV", csv_storico, "storico_partite.c
 # --- Classifica ---
 st.subheader("🏅 Classifica Torneo")
 
-# ✅ Opzione 1: Leggere direttamente dalla tabella classifica (trigger attivo)
+# ✅ Legge la tabella classifica aggiornata dal trigger (se presente)
 try:
     res_classifica = supabase.table("classifica").select("*").order("punti", desc=True).execute()
     df_classifica = pd.DataFrame(res_classifica.data)
