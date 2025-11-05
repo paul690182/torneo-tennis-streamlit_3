@@ -66,14 +66,15 @@ if submit:
 
         punti_g1, punti_g2, tipo_vittoria = calcola_punti(set_g1, set_g2)
 
-        # ✅ Controllo partita già giocata
-        esiste = df[
-            ((df['giocatore1'] == giocatore1) & (df['giocatore2'] == giocatore2)) |
-            ((df['giocatore1'] == giocatore2) & (df['giocatore2'] == giocatore1))
-        ]
-        if not esiste.empty:
-            st.error("❌ Partita già registrata tra questi due giocatori!")
-            st.stop()
+       # ✅ Controllo partita già giocata (solo se ci sono dati)
+if not df.empty and 'giocatore1' in df.columns and 'giocatore2' in df.columns:
+    esiste = df[
+        ((df['giocatore1'] == giocatore1) & (df['giocatore2'] == giocatore2)) |
+        ((df['giocatore1'] == giocatore2) & (df['giocatore2'] == giocatore1))
+    ]
+    if not esiste.empty:
+        st.error("❌ Partita già registrata tra questi due giocatori!")
+        st.stop()
 
         # Salva su Supabase
         supabase.table("partite_completo").insert({
