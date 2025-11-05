@@ -22,20 +22,24 @@ def calcola_punti(set_g1, set_g2):
     if set_g1 == 2 and set_g2 == 0:
         return 3, 0, "2-0"
     elif set_g1 == 2 and set_g2 == 1:
-        return 2, 1, "2-1"
+        return 3, 1, "2-1"
     elif set_g2 == 2 and set_g1 == 0:
         return 0, 3, "0-2"
     elif set_g2 == 2 and set_g1 == 1:
-        return 1, 2, "1-2"
+        return 1, 3, "1-2"
     else:
         return 0, 0, "ND"
 
 # --- Form inserimento partita ---
 st.subheader("➕ Inserisci Nuova Partita")
 with st.form("inserimento_partita"):
-    giocatori = ["Paolo R.", "Francesco M.", "Daniele T.", "Simone V.", "Leo S.", "Maurizio P.", "Andrea P.", "Gianni F.", "Maura F.", "Massimo B.", "Giovanni D.", "Gianni F.", "Maura F.", "Andrea P.", "Gianni F.", "Giuseppe D."]
+    giocatori = [
+        "Paolo R.", "Paola C.", "Francesco M.", "Massimo B.", "Daniele T.",
+        "Simone V.", "Gianni F.", "Leo S.", "Maura F.", "Giovanni D.",
+        "Andrea P.", "Maurizio P.", "Giuseppe D."
+    ]
     giocatore1 = st.selectbox("Giocatore 1", giocatori)
-    giocatore2 = st.selectbox("Giocatore 2", giocatori)
+    giocatore2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != giocatore1])
     set1 = st.text_input("Set 1 (es. 7-5)")
     set2 = st.text_input("Set 2 (es. 1-6)")
     set3 = st.text_input("Set 3 (opzionale, es. 6-4)")
@@ -66,15 +70,15 @@ if submit:
 
         punti_g1, punti_g2, tipo_vittoria = calcola_punti(set_g1, set_g2)
 
-       # ✅ Controllo partita già giocata (solo se ci sono dati)
-if not df.empty and 'giocatore1' in df.columns and 'giocatore2' in df.columns:
-    esiste = df[
-        ((df['giocatore1'] == giocatore1) & (df['giocatore2'] == giocatore2)) |
-        ((df['giocatore1'] == giocatore2) & (df['giocatore2'] == giocatore1))
-    ]
-    if not esiste.empty:
-        st.error("❌ Partita già registrata tra questi due giocatori!")
-        st.stop()
+        # ✅ Controllo partita già giocata
+        if not df.empty and 'giocatore1' in df.columns and 'giocatore2' in df.columns:
+            esiste = df[
+                ((df['giocatore1'] == giocatore1) & (df['giocatore2'] == giocatore2)) |
+                ((df['giocatore1'] == giocatore2) & (df['giocatore2'] == giocatore1))
+            ]
+            if not esiste.empty:
+                st.error("❌ Partita già registrata tra questi due giocatori!")
+                st.stop()
 
         # Salva su Supabase
         supabase.table("partite_completo").insert({
