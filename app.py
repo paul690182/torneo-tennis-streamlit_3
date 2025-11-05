@@ -16,19 +16,19 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("🏆 Torneo Tennis - Gestione Risultati")
-
 # --- Funzione per calcolare punti e tipo vittoria ---
 def calcola_punti(set_g1, set_g2):
     if set_g1 == 2 and set_g2 == 0:
-        return 3, 0, "2-0"
+        return 3, 0, "2-0"  # Vincitore 3 punti, perdente 0
     elif set_g1 == 2 and set_g2 == 1:
-        return 3, 1, "2-1"
+        return 2, 1, "2-1"  # Vincitore 2 punti, perdente 1
     elif set_g2 == 2 and set_g1 == 0:
-        return 0, 3, "0-2"
+        return 0, 3, "0-2"  # Vincitore 3 punti, perdente 0
     elif set_g2 == 2 and set_g1 == 1:
-        return 1, 3, "1-2"
+        return 1, 2, "1-2"  # Vincitore 2 punti, perdente 1
     else:
-        return 0, 0, "ND"
+        return 0, 0, "ND"   # Nessun dato valido
+
 
 # --- Form inserimento partita ---
 st.subheader("➕ Inserisci Nuova Partita")
