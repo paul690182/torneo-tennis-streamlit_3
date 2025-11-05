@@ -1,3 +1,4 @@
+
 import os
 import streamlit as st
 import pandas as pd
@@ -22,11 +23,11 @@ def calcola_punti(set_g1, set_g2):
     if set_g1 == 2 and set_g2 == 0:
         return 3, 0, "2-0"
     elif set_g1 == 2 and set_g2 == 1:
-        return 3, 1, "2-1"
+        return 2, 1, "2-1"
     elif set_g2 == 2 and set_g1 == 0:
         return 0, 3, "0-2"
     elif set_g2 == 2 and set_g1 == 1:
-        return 1, 3, "1-2"
+        return 1, 2, "1-2"
     else:
         return 0, 0, "ND"
 
@@ -93,23 +94,13 @@ st.dataframe(df[["giocatore1", "giocatore2", "set1", "set2", "set3", "tipo_vitto
 csv_storico = df.to_csv(index=False).encode('utf-8')
 st.download_button("⬇️ Scarica Storico CSV", csv_storico, "storico_partite.csv", "text/csv")
 
-# --- Classifica ---
+# --- Classifica calcolata in tempo reale ---
 st.subheader("🏅 Classifica Torneo")
-
-# ✅ Legge la tabella classifica aggiornata dal trigger (se presente)
-try:
-    res_classifica = supabase.table("classifica").select("*").order("punti", desc=True).execute()
-    df_classifica = pd.DataFrame(res_classifica.data)
-except:
-    df_classifica = pd.DataFrame()
-
-# ✅ Se la tabella classifica è vuota, calcola dinamicamente
-if df_classifica.empty:
-    punteggi = pd.concat([
-        df[['giocatore1', 'punti_g1']].rename(columns={'giocatore1': 'giocatore', 'punti_g1': 'punti'}),
-        df[['giocatore2', 'punti_g2']].rename(columns={'giocatore2': 'giocatore', 'punti_g2': 'punti'})
-    ])
-    df_classifica = punteggi.groupby('giocatore').sum().sort_values(by='punti', ascending=False).reset_index()
+punteggi = pd.concat([
+    df[["giocatore1", "punti_g1"]].rename(columns={"giocatore1": "giocatore", "punti_g1": "punti"}),
+    df[["giocatore2", "punti_g2"]].rename(columns={"giocatore2": "giocatore", "punti_g2": "punti"})
+])
+df_classifica = punteggi.groupby("giocatore").sum().sort_values(by="punti", ascending=False).reset_index()
 
 st.dataframe(df_classifica)
 
@@ -120,8 +111,8 @@ st.download_button("⬇️ Scarica Classifica CSV", csv_classifica, "classifica.
 # --- Grafico a barre ---
 st.subheader("📊 Grafico Classifica")
 chart = alt.Chart(df_classifica).mark_bar().encode(
-    x=alt.X('giocatore', sort='-y'),
-    y='punti',
-    color='giocatore'
+    x=alt.X("giocatore", sort="-y"),
+    y="punti",
+    color="giocatore"
 ).properties(width=600)
 st.altair_chart(chart, use_container_width=True)
