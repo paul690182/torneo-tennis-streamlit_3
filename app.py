@@ -1,4 +1,3 @@
-
 import os
 import streamlit as st
 import pandas as pd
@@ -34,13 +33,17 @@ def calcola_punti(set_g1, set_g2):
 # --- Form inserimento partita ---
 st.subheader("➕ Inserisci Nuova Partita")
 with st.form("inserimento_partita"):
-    giocatori = ["Paolo R.", "Francesco M.", "Daniele T.", "Simone V.", "Leo S.", "Maurizio P.", "Andrea P.", "Gianni F.", "Maura F."]
+    giocatori = ["Paolo R.", "Francesco M.", "Daniele T.", "Simone V.", "Leo S.", "Maurizio P.", "Andrea P.", "Gianni F.", "Maura F.", "Massimo B.", "Giovanni D.", "Gianni F.", "Maura F.", "Andrea P.", "Gianni F.", "Giuseppe D."]
     giocatore1 = st.selectbox("Giocatore 1", giocatori)
     giocatore2 = st.selectbox("Giocatore 2", giocatori)
     set1 = st.text_input("Set 1 (es. 7-5)")
     set2 = st.text_input("Set 2 (es. 1-6)")
     set3 = st.text_input("Set 3 (opzionale, es. 6-4)")
     submit = st.form_submit_button("Salva Risultato")
+
+# --- Recupera dati dal DB ---
+res = supabase.table("partite_completo").select("*").order("created_at", desc=True).execute()
+df = pd.DataFrame(res.data)
 
 if submit:
     if giocatore1 == giocatore2:
@@ -63,6 +66,15 @@ if submit:
 
         punti_g1, punti_g2, tipo_vittoria = calcola_punti(set_g1, set_g2)
 
+        # ✅ Controllo partita già giocata
+        esiste = df[
+            ((df['giocatore1'] == giocatore1) & (df['giocatore2'] == giocatore2)) |
+            ((df['giocatore1'] == giocatore2) & (df['giocatore2'] == giocatore1))
+        ]
+        if not esiste.empty:
+            st.error("❌ Partita già registrata tra questi due giocatori!")
+            st.stop()
+
         # Salva su Supabase
         supabase.table("partite_completo").insert({
             "giocatore1": giocatore1,
@@ -78,41 +90,34 @@ if submit:
 
         st.success("✅ Partita salvata con successo!")
 
-# --- Recupera dati dal DB ---
-res = supabase.table("partite_completo").select("*").order("created_at", desc=True).execute()
-df = pd.DataFrame(res.data)
-
+# --- Mostra storico ---
 if df.empty:
     st.warning("Nessuna partita registrata.")
     st.stop()
 
-# --- Mostra storico ---
 st.subheader("📜 Storico Partite")
 st.dataframe(df[["giocatore1", "giocatore2", "set1", "set2", "set3", "tipo_vittoria", "punti_g1", "punti_g2", "created_at"]])
 
-# Download CSV storico
 csv_storico = df.to_csv(index=False).encode('utf-8')
 st.download_button("⬇️ Scarica Storico CSV", csv_storico, "storico_partite.csv", "text/csv")
 
 # --- Classifica calcolata in tempo reale ---
 st.subheader("🏅 Classifica Torneo")
 punteggi = pd.concat([
-    df[["giocatore1", "punti_g1"]].rename(columns={"giocatore1": "giocatore", "punti_g1": "punti"}),
-    df[["giocatore2", "punti_g2"]].rename(columns={"giocatore2": "giocatore", "punti_g2": "punti"})
+    df[['giocatore1', 'punti_g1']].rename(columns={'giocatore1': 'giocatore', 'punti_g1': 'punti'}),
+    df[['giocatore2', 'punti_g2']].rename(columns={'giocatore2': 'giocatore', 'punti_g2': 'punti'})
 ])
-df_classifica = punteggi.groupby("giocatore").sum().sort_values(by="punti", ascending=False).reset_index()
-
+df_classifica = punteggi.groupby('giocatore').sum().sort_values(by='punti', ascending=False).reset_index()
 st.dataframe(df_classifica)
 
-# Download CSV classifica
 csv_classifica = df_classifica.to_csv(index=False).encode('utf-8')
 st.download_button("⬇️ Scarica Classifica CSV", csv_classifica, "classifica.csv", "text/csv")
 
 # --- Grafico a barre ---
 st.subheader("📊 Grafico Classifica")
 chart = alt.Chart(df_classifica).mark_bar().encode(
-    x=alt.X("giocatore", sort="-y"),
-    y="punti",
-    color="giocatore"
+    x=alt.X('giocatore', sort='-y'),
+    y='punti',
+    color='giocatore'
 ).properties(width=600)
 st.altair_chart(chart, use_container_width=True)
