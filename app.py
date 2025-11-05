@@ -106,14 +106,49 @@ st.dataframe(df[["giocatore1", "giocatore2", "set1", "set2", "set3", "tipo_vitto
 csv_storico = df.to_csv(index=False).encode('utf-8')
 st.download_button("⬇️ Scarica Storico CSV", csv_storico, "storico_partite.csv", "text/csv")
 
-# --- Classifica calcolata in tempo reale ---
+# --- Classifica dettagliata ---
 st.subheader("🏅 Classifica Torneo")
+
+# Punti
 punteggi = pd.concat([
     df[['giocatore1', 'punti_g1']].rename(columns={'giocatore1': 'giocatore', 'punti_g1': 'punti'}),
     df[['giocatore2', 'punti_g2']].rename(columns={'giocatore2': 'giocatore', 'punti_g2': 'punti'})
 ])
-df_classifica = punteggi.groupby('giocatore').sum().sort_values(by='punti', ascending=False).reset_index()
+
+# Partite giocate
+partite_giocate = pd.concat([
+    df[['giocatore1']].rename(columns={'giocatore1': 'giocatore'}),
+    df[['giocatore2']].rename(columns={'giocatore2': 'giocatore'})
+]).groupby('giocatore').size().reset_index(name='partite_giocate')
+
+# Vittorie
+vittorie = []
+for _, row in df.iterrows():
+    if row['punti_g1'] > row['punti_g2']:
+        vittorie.append(row['giocatore1'])
+    elif row['punti_g2'] > row['punti_g1']:
+        vittorie.append(row['giocatore2'])
+
+vittorie_df = pd.DataFrame(vittorie, columns=['giocatore'])
+vittorie_df = vittorie_df.groupby('giocatore').size().reset_index(name='vittorie')
+
+# Unione dati
+df_classifica = punteggi.groupby('giocatore').sum().reset_index()
+df_classifica = df_classifica.merge(partite_giocate, on='giocatore', how='left')
+df_classifica = df_classifica.merge(vittorie_df, on='giocatore', how='left')
+df_classifica['vittorie'] = df_classifica['vittorie'].fillna(0).astype(int)
+df_classifica['percentuale_vittorie'] = (df_classifica['vittorie'] / df_classifica['partite_giocate'] * 100).round(1)
+
+# Ordina per punti
+df_classifica = df_classifica.sort_values(by='punti', ascending=False).reset_index(drop=True)
+
 st.dataframe(df_classifica)
+
+# Download CSV
+csv_classifica = df_classifica.to_csv(index=False).encode('utf-8')
+st.download_button("⬇️ Scarica Classifica CSV", csv_classifica, "classifica_dettagliata.csv", "text/csv")
+
+
 
 csv_classifica = df_classifica.to_csv(index=False).encode('utf-8')
 st.download_button("⬇️ Scarica Classifica CSV", csv_classifica, "classifica.csv", "text/csv")
