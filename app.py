@@ -16,19 +16,29 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-st.title("🏆 Torneo Tennis - Gestione Risultati")
+st.title("3c6 Torneo Tennis - Gestione Risultati")
 
 # --- Selezione torneo ---
 TORNEI = ["Top", "Advanced"]
 torneo = st.selectbox("Seleziona Torneo", TORNEI)
 
-# Tabelle e liste placeholder (da sostituire con nomi reali)
+# Liste giocatori aggiornate
+GIOCATORI_TOP = [
+    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni", "Andrea P.", "Giuseppe",
+    "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"
+]
+
+GIOCATORI_ADVANCED = [
+    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna", "Maura", "Paolo Mattioli",
+    "Paola Colonna", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino", "Gianni", "Leonardo", "Francesco M."
+]
+
 if torneo == "Top":
     tabella = "partite_top"
-    giocatori = ["Giocatore Top 1", "Giocatore Top 2", "Giocatore Top 3"]
+    giocatori = GIOCATORI_TOP
 else:
     tabella = "partite_advanced"
-    giocatori = ["Giocatore Adv 1", "Giocatore Adv 2", "Giocatore Adv 3"]
+    giocatori = GIOCATORI_ADVANCED
 
 # --- Funzione per calcolare punti e tipo vittoria ---
 def calcola_punti(set_g1, set_g2):
