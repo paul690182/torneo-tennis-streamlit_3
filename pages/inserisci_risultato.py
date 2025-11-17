@@ -44,6 +44,7 @@ with st.form(key="form_inserimento"):
     st.info(f"{giocatore1} vs {giocatore2} | Set: {set1}, {set2}, {set3}")
 
     # Pulsanti
+    conferma = st.checkbox("Confermo che i dati sono corretti")
     salva = st.form_submit_button("Salva Risultato")
     reset = st.form_submit_button("Reset Campi")
 
@@ -54,7 +55,9 @@ if reset:
 
 # Controllo e salvataggio
 if salva:
-    if giocatore1 == giocatore2:
+    if not conferma:
+        st.error("⚠ Devi confermare i dati prima di salvare!")
+    elif giocatore1 == giocatore2:
         st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
     else:
         # Funzione per calcolare risultato e punti
