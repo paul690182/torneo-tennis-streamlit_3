@@ -21,94 +21,100 @@ lista_advanced = [
 
 st.title("Inserisci Risultato Partita")
 
-# Selezione sezione
-sezione = st.radio("Seleziona sezione", ["Top", "Advanced"])
+# Funzione per calcolare risultato e punti
+def calcola_risultato(set1, set2, set3):
+    sets = [set1, set2] + ([set3] if set3 else [])
+    g1_vinti = 0
+    g2_vinti = 0
+    for s in sets:
+        if "-" in s:
+            try:
+                p1, p2 = map(int, s.split("-"))
+                if p1 > p2:
+                    g1_vinti += 1
+                else:
+                    g2_vinti += 1
+            except ValueError:
+                pass
+    return f"{g1_vinti}-{g2_vinti}", g1_vinti, g2_vinti
 
-# Form per inserimento dati
-with st.form(key="form_inserimento"):
-    if sezione == "Top":
-        st.subheader("Inserisci risultato TOP")
-        giocatore1 = st.selectbox("Giocatore 1", lista_top, key="top_player1")
-        giocatore2 = st.selectbox("Giocatore 2", lista_top, key="top_player2")
-    else:
-        st.subheader("Inserisci risultato ADVANCED")
-        giocatore1 = st.selectbox("Giocatore 1", lista_advanced, key="adv_player1")
-        giocatore2 = st.selectbox("Giocatore 2", lista_advanced, key="adv_player2")
+# Funzione per salvataggio su Supabase
+def salva_risultato(sezione, giocatore1, giocatore2, set1, set2, set3):
+    risultato, g1_vinti, g2_vinti = calcola_risultato(set1, set2, set3)
+    punti_g1 = 0
+    punti_g2 = 0
+    if risultato == "2-0":
+        punti_g1 = 3
+    elif risultato == "0-2":
+        punti_g2 = 3
+    elif risultato == "2-1":
+        punti_g1 = 3
+        punti_g2 = 1
+    elif risultato == "1-2":
+        punti_g1 = 1
+        punti_g2 = 3
 
-    set1 = st.text_input("Set 1 (es. 6-4)", key="set1")
-    set2 = st.text_input("Set 2 (es. 6-3)", key="set2")
-    set3 = st.text_input("Set 3 (opzionale, es. 7-5)", key="set3")
+    data = {
+        "sezione": sezione,
+        "giocatore1": giocatore1,
+        "giocatore2": giocatore2,
+        "set1": set1,
+        "set2": set2,
+        "set3": set3,
+        "risultato": risultato,
+        "punti_g1": punti_g1,
+        "punti_g2": punti_g2,
+        "timestamp": datetime.now().isoformat()
+    }
+    client.table("partite").insert(data).execute()
 
-    # Riepilogo visivo
-    st.write("### Riepilogo")
-    st.info(f"{giocatore1} vs {giocatore2} | Set: {set1}, {set2}, {set3}")
+# Form separato per TOP
+with st.form("form_top"):
+    st.subheader("Inserisci risultato TOP")
+    giocatore1_top = st.selectbox("Giocatore 1 (Top)", lista_top, key="top_player1")
+    giocatore2_top = st.selectbox("Giocatore 2 (Top)", lista_top, key="top_player2")
+    set1_top = st.text_input("Set 1", key="top_set1")
+    set2_top = st.text_input("Set 2", key="top_set2")
+    set3_top = st.text_input("Set 3", key="top_set3")
+    st.write(f"**Riepilogo:** {giocatore1_top} vs {giocatore2_top} | {set1_top}, {set2_top}, {set3_top}")
+    salva_top = st.form_submit_button("Salva TOP")
+    reset_top = st.form_submit_button("Reset TOP")
 
-    # Pulsanti
-    conferma = st.checkbox("Confermo che i dati sono corretti")
-    salva = st.form_submit_button("Salva Risultato")
-    reset = st.form_submit_button("Reset Campi")
-
-# Logica reset manuale
-if reset:
+if reset_top:
     st.session_state.clear()
     st.experimental_rerun()
 
-# Controllo e salvataggio
-if salva:
-    if not conferma:
-        st.error("⚠ Devi confermare i dati prima di salvare!")
-    elif giocatore1 == giocatore2:
+if salva_top:
+    if giocatore1_top == giocatore2_top:
         st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
     else:
-        # Funzione per calcolare risultato e punti
-        def calcola_risultato(set1, set2, set3):
-            sets = [set1, set2] + ([set3] if set3 else [])
-            g1_vinti = 0
-            g2_vinti = 0
-            for s in sets:
-                if "-" in s:
-                    try:
-                        p1, p2 = map(int, s.split("-"))
-                        if p1 > p2:
-                            g1_vinti += 1
-                        else:
-                            g2_vinti += 1
-                    except ValueError:
-                        pass
-            return f"{g1_vinti}-{g2_vinti}", g1_vinti, g2_vinti
+        st.warning(f"Confermi il salvataggio di {giocatore1_top} vs {giocatore2_top}?")
+        salva_risultato("Top", giocatore1_top, giocatore2_top, set1_top, set2_top, set3_top)
+        st.success("✅ Risultato TOP salvato!")
+        st.experimental_rerun()
 
-        risultato, g1_vinti, g2_vinti = calcola_risultato(set1, set2, set3)
+# Form separato per ADVANCED
+with st.form("form_advanced"):
+    st.subheader("Inserisci risultato ADVANCED")
+    giocatore1_adv = st.selectbox("Giocatore 1 (Advanced)", lista_advanced, key="adv_player1")
+    giocatore2_adv = st.selectbox("Giocatore 2 (Advanced)", lista_advanced, key="adv_player2")
+    set1_adv = st.text_input("Set 1", key="adv_set1")
+    set2_adv = st.text_input("Set 2", key="adv_set2")
+    set3_adv = st.text_input("Set 3", key="adv_set3")
+    st.write(f"**Riepilogo:** {giocatore1_adv} vs {giocatore2_adv} | {set1_adv}, {set2_adv}, {set3_adv}")
+    salva_adv = st.form_submit_button("Salva ADVANCED")
+    reset_adv = st.form_submit_button("Reset ADVANCED")
 
-        # Logica punti
-        punti_g1 = 0
-        punti_g2 = 0
-        if risultato == "2-0":
-            punti_g1 = 3
-        elif risultato == "0-2":
-            punti_g2 = 3
-        elif risultato == "2-1":
-            punti_g1 = 3
-            punti_g2 = 1
-        elif risultato == "1-2":
-            punti_g1 = 1
-            punti_g2 = 3
+if reset_adv:
+    st.session_state.clear()
+    st.experimental_rerun()
 
-        # Salvataggio su Supabase
-        data = {
-            "sezione": sezione,
-            "giocatore1": giocatore1,
-            "giocatore2": giocatore2,
-            "set1": set1,
-            "set2": set2,
-            "set3": set3,
-            "risultato": risultato,
-            "punti_g1": punti_g1,
-            "punti_g2": punti_g2,
-            "timestamp": datetime.now().isoformat()
-        }
-        try:
-            client.table("partite").insert(data).execute()
-            st.success(f"✅ Risultato salvato: {giocatore1} vs {giocatore2} ({risultato})")
-            st.experimental_rerun()
-        except Exception as e:
-            st.error(f"Errore nel salvataggio: {e}")
+if salva_adv:
+    if giocatore1_adv == giocatore2_adv:
+        st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
+    else:
+        st.warning(f"Confermi il salvataggio di {giocatore1_adv} vs {giocatore2_adv}?")
+        salva_risultato("Advanced", giocatore1_adv, giocatore2_adv, set1_adv, set2_adv, set3_adv)
+        st.success("✅ Risultato ADVANCED salvato!")
+        st.experimental_rerun()
+
