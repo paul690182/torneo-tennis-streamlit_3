@@ -1,13 +1,15 @@
 import streamlit as st
 from supabase import create_client
 import datetime
+from supabase_config import SUPABASE_URL, SUPABASE_KEY  # Import credenziali
 
-# Configura Supabase
-SUPABASE_URL = "https://<TUO-PROGETTO>.supabase.co"
-SUPABASE_KEY = "<CHIAVE-API>"
+# Connessione a Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-lista_giocatori = ["Francesco M", "Pasquale V", "Paolo R", "Leo S", "Gianni F", "Simone", "Marco", "Riccardo"]
+lista_giocatori = [
+    "Francesco M", "Pasquale V", "Paolo R", "Leo S", "Gianni F",
+    "Simone", "Marco", "Riccardo"
+]
 
 st.title("Inserisci risultato partita")
 
