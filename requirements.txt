@@ -1,4 +1,4 @@
 streamlit
-supabase
+supabase-py
 pandas
 altair
