@@ -1,17 +1,16 @@
 import streamlit as st
 from supabase import create_client
 import datetime
-from supabase_config import SUPABASE_URL, SUPABASE_KEY  # Import credenziali
+from supabase_config import SUPABASE_URL, SUPABASE_KEY
 
 # Connessione a Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 lista_giocatori = [
-    "Francesco M", "Pasquale V", "Paolo R", "Leo S", "Gianni F",
-    "Simone", "Marco", "Riccardo"
+    "Leonardino", "Marco", "Simone", "Salvatore", "Riccardo", "Giuseppe", "Massimo", "Cris Cosso"
 ]
 
-st.title("Inserisci risultato partita")
+st.title("Inserisci risultato (Partite TOP)")
 
 # ✅ Selezione giocatori
 giocatore1 = st.selectbox("Giocatore 1", lista_giocatori)
@@ -57,13 +56,13 @@ if st.button("Salva risultato"):
         "punti_g2": punti_g2,
         "created_at": datetime.datetime.utcnow().isoformat()
     }
-    response = supabase.table("partite_advanced").insert(data).execute()
+    response = supabase.table("partite_top").insert(data).execute()
     st.success("Risultato inserito!")
     st.write(response.data)
 
 # ✅ Mostra ultimi risultati
-st.subheader("Ultimi risultati")
-res = supabase.table("partite_advanced").select("*").order("created_at", desc=True).limit(10).execute()
+st.subheader("Ultimi risultati (TOP)")
+res = supabase.table("partite_top").select("*").order("created_at", desc=True).limit(10).execute()
 for row in res.data:
     st.write(f"{row['created_at']} | {row['giocatore1']} vs {row['giocatore2']} | "
              f"Set: {row['set1']}, {row['set2']}, {row['set3']} | Punti: {row['punti_g1']} - {row['punti_g2']}")
