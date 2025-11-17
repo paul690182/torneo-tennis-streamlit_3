@@ -2,13 +2,13 @@ import streamlit as st
 from datetime import datetime
 from supabase import create_client
 
-# Connessione a Supabase (usa le tue credenziali in .streamlit/secrets.toml)
+# Connessione a Supabase
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 client = create_client(url, key)
 
 # Liste giocatori per le due sezioni
-lista_top = ["Roberto A.", "Michele", "Pasquale V.", "Gianni F."]
+lista_top = ["Roberto A.", "Michele", "Pasquale V.", "Gianni F.", "Giovanni", "Riccardo", "Simone"]
 lista_advanced = ["Leo S.", "Andrea P.", "Marco T.", "Luca B."]
 
 st.title("Inserisci Risultato Partita")
@@ -23,21 +23,21 @@ else:
     st.subheader("Inserisci risultato ADVANCED")
     lista_giocatori = lista_advanced
 
-# Selectbox con chiavi uniche
+# Selectbox con chiavi dinamiche basate sulla sezione
 col1, col2 = st.columns(2)
 with col1:
-    giocatore1 = st.selectbox("Giocatore 1", lista_giocatori, key="player1")
+    giocatore1 = st.selectbox("Giocatore 1", lista_giocatori, key=f"{sezione}_player1")
 with col2:
-    giocatore2 = st.selectbox("Giocatore 2", lista_giocatori, key="player2")
+    giocatore2 = st.selectbox("Giocatore 2", lista_giocatori, key=f"{sezione}_player2")
 
 # Controllo per evitare che siano uguali
 if giocatore1 == giocatore2:
     st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
 else:
     # Input dei set
-    set1 = st.text_input("Set 1 (es. 6-4)", key="set1")
-    set2 = st.text_input("Set 2 (es. 6-3)", key="set2")
-    set3 = st.text_input("Set 3 (opzionale, es. 7-5)", key="set3")
+    set1 = st.text_input("Set 1 (es. 6-4)", key=f"{sezione}_set1")
+    set2 = st.text_input("Set 2 (es. 6-3)", key=f"{sezione}_set2")
+    set3 = st.text_input("Set 3 (opzionale, es. 7-5)", key=f"{sezione}_set3")
 
     # Funzione per calcolare risultato e punti
     def calcola_risultato(set1, set2, set3):
@@ -89,5 +89,14 @@ else:
         try:
             client.table("partite").insert(data).execute()
             st.success(f"✅ Risultato salvato: {giocatore1} vs {giocatore2} ({risultato})")
+
+            # Reset automatico dei campi
+            st.session_state[f"{sezione}_player1"] = lista_giocatori[0]
+            st.session_state[f"{sezione}_player2"] = lista_giocatori[0]
+            st.session_state[f"{sezione}_set1"] = ""
+            st.session_state[f"{sezione}_set2"] = ""
+            st.session_state[f"{sezione}_set3"] = ""
+
         except Exception as e:
             st.error(f"Errore nel salvataggio: {e}")
+
