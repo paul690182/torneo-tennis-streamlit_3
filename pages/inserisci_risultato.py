@@ -1,109 +1,67 @@
 import streamlit as st
-from datetime import datetime
 from supabase import create_client
+import datetime
 
-# Connessione a Supabase
-url = st.secrets["SUPABASE_URL"]
-key = st.secrets["SUPABASE_KEY"]
-client = create_client(url, key)
+# Configura Supabase
+SUPABASE_URL = "https://<TUO-PROGETTO>.supabase.co"
+SUPABASE_KEY = "<CHIAVE-API>"
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Liste giocatori aggiornate
-lista_top = [
-    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni", "Andrea P.",
-    "Giuseppe", "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"
-]
+lista_giocatori = ["Francesco M", "Pasquale V", "Paolo R", "Leo S", "Gianni F", "Simone", "Marco", "Riccardo"]
 
-lista_advanced = [
-    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna", "Maura",
-    "Paolo Mattioli", "Paola Colonna", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino",
-    "Gianni", "Leonardo", "Francesco M."
-]
+st.title("Inserisci risultato partita")
 
-st.title("Inserisci Risultato Partita")
+# ✅ Selezione giocatori
+giocatore1 = st.selectbox("Giocatore 1", lista_giocatori)
+giocatore2 = st.selectbox("Giocatore 2", [g for g in lista_giocatori if g != giocatore1])
 
-# Funzione per calcolare risultato e punti
-def calcola_risultato(set1, set2, set3):
-    sets = [set1, set2] + ([set3] if set3 else [])
-    g1_vinti = 0
-    g2_vinti = 0
-    for s in sets:
-        if "-" in s:
-            try:
-                p1, p2 = map(int, s.split("-"))
-                if p1 > p2:
-                    g1_vinti += 1
-                else:
-                    g2_vinti += 1
-            except ValueError:
-                pass
-    return f"{g1_vinti}-{g2_vinti}", g1_vinti, g2_vinti
+# ✅ Inserimento set
+set1 = st.text_input("Set 1 (es. 6-3)")
+set2 = st.text_input("Set 2 (es. 6-4)")
+set3 = st.text_input("Set 3 (es. 7-5 o vuoto)")
 
-# Funzione per salvataggio su Supabase
-def salva_risultato(sezione, giocatore1, giocatore2, set1, set2, set3):
-    risultato, g1_vinti, g2_vinti = calcola_risultato(set1, set2, set3)
-    punti_g1 = 0
-    punti_g2 = 0
-    if risultato == "2-0":
-        punti_g1 = 3
-    elif risultato == "0-2":
-        punti_g2 = 3
-    elif risultato == "2-1":
-        punti_g1 = 3
-        punti_g2 = 1
-    elif risultato == "1-2":
-        punti_g1 = 1
-        punti_g2 = 3
+# ✅ Calcolo automatico tipo vittoria e punti
+def calcola_punti(set1, set2, set3):
+    vittorie_g1 = 0
+    vittorie_g2 = 0
+    for s in [set1, set2, set3]:
+        if s:
+            g1, g2 = map(int, s.split("-"))
+            if g1 > g2:
+                vittorie_g1 += 1
+            else:
+                vittorie_g2 += 1
+    tipo_vittoria = f"{vittorie_g1}-{vittorie_g2}"
+    if vittorie_g1 == 2 and vittorie_g2 == 0:
+        return tipo_vittoria, 3, 0
+    elif vittorie_g1 == 2 and vittorie_g2 == 1:
+        return tipo_vittoria, 3, 1
+    elif vittorie_g2 == 2 and vittorie_g1 == 0:
+        return tipo_vittoria, 0, 3
+    elif vittorie_g2 == 2 and vittorie_g1 == 1:
+        return tipo_vittoria, 1, 3
+    return tipo_vittoria, 0, 0
 
+if st.button("Salva risultato"):
+    tipo_vittoria, punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
     data = {
-        "sezione": sezione,
         "giocatore1": giocatore1,
         "giocatore2": giocatore2,
         "set1": set1,
         "set2": set2,
         "set3": set3,
-        "risultato": risultato,
+        "tipo_vittoria": tipo_vittoria,
         "punti_g1": punti_g1,
         "punti_g2": punti_g2,
-        "timestamp": datetime.now().isoformat()
+        "created_at": datetime.datetime.utcnow().isoformat()
     }
-    client.table("partite").insert(data).execute()
+    response = supabase.table("partite_advanced").insert(data).execute()
+    st.success("Risultato inserito!")
+    st.write(response.data)
 
-# Form separato per TOP
-with st.form("form_top", clear_on_submit=True):
-    st.subheader("Inserisci risultato TOP")
-    giocatore1_top = st.selectbox("Giocatore 1 (Top)", ["Seleziona..."] + lista_top, index=0)
-    giocatore2_top = st.selectbox("Giocatore 2 (Top)", ["Seleziona..."] + lista_top, index=0)
-    set1_top = st.text_input("Set 1")
-    set2_top = st.text_input("Set 2")
-    set3_top = st.text_input("Set 3 (opzionale)")
-    salva_top = st.form_submit_button("Salva TOP")
-
-if salva_top:
-    if giocatore1_top == "Seleziona..." or giocatore2_top == "Seleziona...":
-        st.error("⚠ Devi selezionare entrambi i giocatori!")
-    elif giocatore1_top == giocatore2_top:
-        st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
-    else:
-        st.warning(f"Confermi il salvataggio di {giocatore1_top} vs {giocatore2_top}?")
-        salva_risultato("Top", giocatore1_top, giocatore2_top, set1_top, set2_top, set3_top)
-        st.success("✅ Risultato TOP salvato!")
-
-# Form separato per ADVANCED
-with st.form("form_advanced", clear_on_submit=True):
-    st.subheader("Inserisci risultato ADVANCED")
-    giocatore1_adv = st.selectbox("Giocatore 1 (Advanced)", ["Seleziona..."] + lista_advanced, index=0)
-    giocatore2_adv = st.selectbox("Giocatore 2 (Advanced)", ["Seleziona..."] + lista_advanced, index=0)
-    set1_adv = st.text_input("Set 1")
-    set2_adv = st.text_input("Set 2")
-    set3_adv = st.text_input("Set 3 (opzionale)")
-    salva_adv = st.form_submit_button("Salva ADVANCED")
-
-if salva_adv:
-    if giocatore1_adv == "Seleziona..." or giocatore2_adv == "Seleziona...":
-        st.error("⚠ Devi selezionare entrambi i giocatori!")
-    elif giocatore1_adv == giocatore2_adv:
-        st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
-    else:
-        st.warning(f"Confermi il salvataggio di {giocatore1_adv} vs {giocatore2_adv}?")
-        salva_risultato("Advanced", giocatore1_adv, giocatore2_adv, set1_adv, set2_adv, set3_adv)
-        st.success("✅ Risultato ADVANCED salvato!")
+# ✅ Mostra ultimi risultati
+st.subheader("Ultimi risultati")
+res = supabase.table("partite_advanced").select("*").order("created_at", desc=True).limit(10).execute()
+for row in res.data:
+    st.write(f"{row['created_at']} | {row['giocatore1']} vs {row['giocatore2']} | "
+             f"Set: {row['set1']}, {row['set2']}, {row['set3']} | Punti: {row['punti_g1']} - {row['punti_g2']}")
