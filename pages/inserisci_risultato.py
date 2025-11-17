@@ -7,9 +7,17 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 client = create_client(url, key)
 
-# Liste giocatori per le due sezioni
-lista_top = ["Roberto A.", "Michele", "Pasquale V.", "Gianni F.", "Giovanni", "Riccardo", "Simone"]
-lista_advanced = ["Leo S.", "Andrea P.", "Marco T.", "Luca B."]
+# Liste giocatori per le due sezioni (aggiornate)
+lista_top = [
+    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni", "Andrea P.",
+    "Giuseppe", "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"
+]
+
+lista_advanced = [
+    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna", "Maura",
+    "Paolo Mattioli", "Paola Colonna", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino",
+    "Gianni", "Leonardo", "Francesco M."
+]
 
 st.title("Inserisci Risultato Partita")
 
@@ -99,4 +107,3 @@ else:
 
         except Exception as e:
             st.error(f"Errore nel salvataggio: {e}")
-
