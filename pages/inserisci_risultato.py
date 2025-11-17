@@ -69,52 +69,41 @@ def salva_risultato(sezione, giocatore1, giocatore2, set1, set2, set3):
     client.table("partite").insert(data).execute()
 
 # Form separato per TOP
-with st.form("form_top"):
+with st.form("form_top", clear_on_submit=True):
     st.subheader("Inserisci risultato TOP")
-    giocatore1_top = st.selectbox("Giocatore 1 (Top)", lista_top, key="top_player1")
-    giocatore2_top = st.selectbox("Giocatore 2 (Top)", lista_top, key="top_player2")
-    set1_top = st.text_input("Set 1", key="top_set1")
-    set2_top = st.text_input("Set 2", key="top_set2")
-    set3_top = st.text_input("Set 3", key="top_set3")
-    st.write(f"**Riepilogo:** {giocatore1_top} vs {giocatore2_top} | {set1_top}, {set2_top}, {set3_top}")
+    giocatore1_top = st.selectbox("Giocatore 1 (Top)", ["Seleziona..."] + lista_top, index=0)
+    giocatore2_top = st.selectbox("Giocatore 2 (Top)", ["Seleziona..."] + lista_top, index=0)
+    set1_top = st.text_input("Set 1")
+    set2_top = st.text_input("Set 2")
+    set3_top = st.text_input("Set 3 (opzionale)")
     salva_top = st.form_submit_button("Salva TOP")
-    reset_top = st.form_submit_button("Reset TOP")
-
-if reset_top:
-    st.session_state.clear()
-    st.experimental_rerun()
 
 if salva_top:
-    if giocatore1_top == giocatore2_top:
+    if giocatore1_top == "Seleziona..." or giocatore2_top == "Seleziona...":
+        st.error("⚠ Devi selezionare entrambi i giocatori!")
+    elif giocatore1_top == giocatore2_top:
         st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
     else:
         st.warning(f"Confermi il salvataggio di {giocatore1_top} vs {giocatore2_top}?")
         salva_risultato("Top", giocatore1_top, giocatore2_top, set1_top, set2_top, set3_top)
         st.success("✅ Risultato TOP salvato!")
-        st.experimental_rerun()
 
 # Form separato per ADVANCED
-with st.form("form_advanced"):
+with st.form("form_advanced", clear_on_submit=True):
     st.subheader("Inserisci risultato ADVANCED")
-    giocatore1_adv = st.selectbox("Giocatore 1 (Advanced)", lista_advanced, key="adv_player1")
-    giocatore2_adv = st.selectbox("Giocatore 2 (Advanced)", lista_advanced, key="adv_player2")
-    set1_adv = st.text_input("Set 1", key="adv_set1")
-    set2_adv = st.text_input("Set 2", key="adv_set2")
-    set3_adv = st.text_input("Set 3", key="adv_set3")
-    st.write(f"**Riepilogo:** {giocatore1_adv} vs {giocatore2_adv} | {set1_adv}, {set2_adv}, {set3_adv}")
+    giocatore1_adv = st.selectbox("Giocatore 1 (Advanced)", ["Seleziona..."] + lista_advanced, index=0)
+    giocatore2_adv = st.selectbox("Giocatore 2 (Advanced)", ["Seleziona..."] + lista_advanced, index=0)
+    set1_adv = st.text_input("Set 1")
+    set2_adv = st.text_input("Set 2")
+    set3_adv = st.text_input("Set 3 (opzionale)")
     salva_adv = st.form_submit_button("Salva ADVANCED")
-    reset_adv = st.form_submit_button("Reset ADVANCED")
-
-if reset_adv:
-    st.session_state.clear()
-    st.experimental_rerun()
 
 if salva_adv:
-    if giocatore1_adv == giocatore2_adv:
+    if giocatore1_adv == "Seleziona..." or giocatore2_adv == "Seleziona...":
+        st.error("⚠ Devi selezionare entrambi i giocatori!")
+    elif giocatore1_adv == giocatore2_adv:
         st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
     else:
         st.warning(f"Confermi il salvataggio di {giocatore1_adv} vs {giocatore2_adv}?")
         salva_risultato("Advanced", giocatore1_adv, giocatore2_adv, set1_adv, set2_adv, set3_adv)
         st.success("✅ Risultato ADVANCED salvato!")
-        st.experimental_rerun()
-
