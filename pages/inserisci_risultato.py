@@ -7,7 +7,7 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 client = create_client(url, key)
 
-# Liste giocatori per le due sezioni (aggiornate)
+# Liste giocatori aggiornate
 lista_top = [
     "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni", "Andrea P.",
     "Giuseppe", "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"
@@ -26,26 +26,24 @@ sezione = st.radio("Seleziona sezione", ["Top", "Advanced"])
 
 if sezione == "Top":
     st.subheader("Inserisci risultato TOP")
-    lista_giocatori = lista_top
+    giocatore1 = st.selectbox("Giocatore 1", lista_top, key="player1_top")
+    giocatore2 = st.selectbox("Giocatore 2", lista_top, key="player2_top")
 else:
     st.subheader("Inserisci risultato ADVANCED")
-    lista_giocatori = lista_advanced
+    giocatore1 = st.selectbox("Giocatore 1", lista_advanced, key="player1_advanced")
+    giocatore2 = st.selectbox("Giocatore 2", lista_advanced, key="player2_advanced")
 
-# Selectbox con chiavi dinamiche basate sulla sezione
-col1, col2 = st.columns(2)
-with col1:
-    giocatore1 = st.selectbox("Giocatore 1", lista_giocatori, key=f"{sezione}_player1")
-with col2:
-    giocatore2 = st.selectbox("Giocatore 2", lista_giocatori, key=f"{sezione}_player2")
+# Conferma visiva dei giocatori selezionati
+st.info(f"Giocatori selezionati: {giocatore1} vs {giocatore2}")
 
 # Controllo per evitare che siano uguali
 if giocatore1 == giocatore2:
     st.error("⚠ Giocatore 1 e Giocatore 2 devono essere diversi!")
 else:
     # Input dei set
-    set1 = st.text_input("Set 1 (es. 6-4)", key=f"{sezione}_set1")
-    set2 = st.text_input("Set 2 (es. 6-3)", key=f"{sezione}_set2")
-    set3 = st.text_input("Set 3 (opzionale, es. 7-5)", key=f"{sezione}_set3")
+    set1 = st.text_input("Set 1 (es. 6-4)", key="set1")
+    set2 = st.text_input("Set 2 (es. 6-3)", key="set2")
+    set3 = st.text_input("Set 3 (opzionale, es. 7-5)", key="set3")
 
     # Funzione per calcolare risultato e punti
     def calcola_risultato(set1, set2, set3):
@@ -98,12 +96,9 @@ else:
             client.table("partite").insert(data).execute()
             st.success(f"✅ Risultato salvato: {giocatore1} vs {giocatore2} ({risultato})")
 
-            # Reset automatico dei campi
-            st.session_state[f"{sezione}_player1"] = lista_giocatori[0]
-            st.session_state[f"{sezione}_player2"] = lista_giocatori[0]
-            st.session_state[f"{sezione}_set1"] = ""
-            st.session_state[f"{sezione}_set2"] = ""
-            st.session_state[f"{sezione}_set3"] = ""
+            # Reset completo con rerun
+            st.experimental_rerun()
 
         except Exception as e:
             st.error(f"Errore nel salvataggio: {e}")
+
