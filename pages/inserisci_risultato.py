@@ -6,15 +6,29 @@ from supabase_config import SUPABASE_URL, SUPABASE_KEY
 # Connessione a Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-lista_giocatori = [
-    "Leonardino", "Marco", "Simone", "Salvatore", "Riccardo", "Giuseppe", "Massimo", "Cris Cosso"
-]
+# ✅ Selezione torneo
+torneo = st.selectbox("Seleziona torneo", ["Advanced", "Top"])
 
-st.title("Inserisci risultato (Partite TOP)")
+# ✅ Liste giocatori per ogni torneo
+giocatori_advanced = ["Francesco M", "Pasquale V", "Paolo R", "Leo S", "Gianni F", "Simone", "Marco", "Riccardo"]
+giocatori_top = ["Leonardino", "Marco", "Simone", "Salvatore", "Riccardo", "Giuseppe", "Massimo", "Cris Cosso"]
+
+lista_giocatori = giocatori_advanced if torneo == "Advanced" else giocatori_top
+tabella = "partite_advanced" if torneo == "Advanced" else "partite_top"
+
+st.title(f"Inserisci risultato ({torneo})")
 
 # ✅ Selezione giocatori
 giocatore1 = st.selectbox("Giocatore 1", lista_giocatori)
-giocatore2 = st.selectbox("Giocatore 2", [g for g in lista_giocatori if g != giocatore1])
+giocatore2 = st.selectbox(
+    "Giocatore 2",
+    [g for g in lista_giocatori if g != giocatore1],
+    index=None,
+    placeholder="Seleziona il secondo giocatore"
+)
+
+# ✅ Debug visivo
+st.write(f"DEBUG → Giocatore 1: {giocatore1}, Giocatore 2: {giocatore2}")
 
 # ✅ Inserimento set
 set1 = st.text_input("Set 1 (es. 6-3)")
@@ -44,25 +58,28 @@ def calcola_punti(set1, set2, set3):
     return tipo_vittoria, 0, 0
 
 if st.button("Salva risultato"):
-    tipo_vittoria, punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
-    data = {
-        "giocatore1": giocatore1,
-        "giocatore2": giocatore2,
-        "set1": set1,
-        "set2": set2,
-        "set3": set3,
-        "tipo_vittoria": tipo_vittoria,
-        "punti_g1": punti_g1,
-        "punti_g2": punti_g2,
-        "created_at": datetime.datetime.utcnow().isoformat()
-    }
-    response = supabase.table("partite_top").insert(data).execute()
-    st.success("Risultato inserito!")
-    st.write(response.data)
+    if giocatore2 is None:
+        st.error("Seleziona il secondo giocatore!")
+    else:
+        tipo_vittoria, punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
+        data = {
+            "giocatore1": giocatore1,
+            "giocatore2": giocatore2,
+            "set1": set1,
+            "set2": set2,
+            "set3": set3,
+            "tipo_vittoria": tipo_vittoria,
+            "punti_g1": punti_g1,
+            "punti_g2": punti_g2,
+            "created_at": datetime.datetime.utcnow().isoformat()
+        }
+        response = supabase.table(tabella).insert(data).execute()
+        st.success("Risultato inserito!")
+        st.write(response.data)
 
 # ✅ Mostra ultimi risultati
-st.subheader("Ultimi risultati (TOP)")
-res = supabase.table("partite_top").select("*").order("created_at", desc=True).limit(10).execute()
+st.subheader(f"Ultimi risultati ({torneo})")
+res = supabase.table(tabella).select("*").order("created_at", desc=True).limit(10).execute()
 for row in res.data:
     st.write(f"{row['created_at']} | {row['giocatore1']} vs {row['giocatore2']} | "
              f"Set: {row['set1']}, {row['set2']}, {row['set3']} | Punti: {row['punti_g1']} - {row['punti_g2']}")
