@@ -57,6 +57,16 @@ def calcola_punti(set1, set2, set3):
         return tipo_vittoria, 1, 3
     return tipo_vittoria, 0, 0
 
+# ✅ Funzione per aggiornare la classifica
+
+def aggiorna_classifica(giocatore, punti):
+    res = supabase.table("classifica").select("*").eq("giocatore", giocatore).execute()
+    if len(res.data) == 0:
+        supabase.table("classifica").insert({"giocatore": giocatore, "punti": punti}).execute()
+    else:
+        punti_attuali = res.data[0]["punti"]
+        supabase.table("classifica").update({"punti": punti_attuali + punti}).eq("giocatore", giocatore).execute()
+
 if st.button("Salva risultato"):
     if giocatore2 is None:
         st.error("Seleziona il secondo giocatore!")
@@ -77,9 +87,18 @@ if st.button("Salva risultato"):
         st.success("Risultato inserito!")
         st.write(response.data)
 
+        # Aggiorna classifica
+        aggiorna_classifica(giocatore1, punti_g1)
+        aggiorna_classifica(giocatore2, punti_g2)
+
 # ✅ Mostra ultimi risultati
 st.subheader(f"Ultimi risultati ({torneo})")
 res = supabase.table(tabella).select("*").order("created_at", desc=True).limit(10).execute()
 for row in res.data:
     st.write(f"{row['created_at']} | {row['giocatore1']} vs {row['giocatore2']} | "
              f"Set: {row['set1']}, {row['set2']}, {row['set3']} | Punti: {row['punti_g1']} - {row['punti_g2']}")
+
+# ✅ Mostra classifica aggiornata
+st.subheader("Classifica aggiornata")
+classifica = supabase.table("classifica").select("*").order("punti", desc=True).execute()
+st.table(classifica.data)
