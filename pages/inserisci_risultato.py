@@ -22,7 +22,8 @@ giocatori_top = [
 ]
 
 lista_giocatori = giocatori_advanced if torneo == "Advanced" else giocatori_top
-tabella = "partite_advanced" if torneo == "Advanced" else "partite_top"
+tabella_partite = "partite_advanced" if torneo == "Advanced" else "partite_top"
+tabella_classifica = "classifica_advanced" if torneo == "Advanced" else "classifica_top"
 
 st.title(f"Inserisci risultato ({torneo})")
 
@@ -83,12 +84,12 @@ def calcola_punti_e_vincitore(set1, set2, set3, giocatore1, giocatore2):
 
 # ✅ Funzione per aggiornare la classifica
 def aggiorna_classifica(giocatore, punti):
-    res = supabase.table("classifica").select("*").eq("giocatore", giocatore).execute()
+    res = supabase.table(tabella_classifica).select("*").eq("giocatore", giocatore).execute()
     if len(res.data) == 0:
-        supabase.table("classifica").insert({"giocatore": giocatore, "punti": punti}).execute()
+        supabase.table(tabella_classifica).insert({"giocatore": giocatore, "punti": punti}).execute()
     else:
         punti_attuali = res.data[0]["punti"]
-        supabase.table("classifica").update({"punti": punti_attuali + punti}).eq("giocatore", giocatore).execute()
+        supabase.table(tabella_classifica).update({"punti": punti_attuali + punti}).eq("giocatore", giocatore).execute()
 
 if st.button("Salva risultato"):
     if not giocatore2:
@@ -109,7 +110,7 @@ if st.button("Salva risultato"):
             "vincitore": vincitore,
             "created_at": datetime.datetime.utcnow().isoformat()
         }
-        response = supabase.table(tabella).insert(data).execute()
+        response = supabase.table(tabella_partite).insert(data).execute()
         st.success("Risultato inserito!")
         st.write(response.data)
 
@@ -122,12 +123,12 @@ if st.button("Salva risultato"):
 
 # ✅ Mostra ultimi risultati
 st.subheader(f"Ultimi risultati ({torneo})")
-res = supabase.table(tabella).select("*").order("created_at", desc=True).limit(10).execute()
+res = supabase.table(tabella_partite).select("*").order("created_at", desc=True).limit(10).execute()
 for row in res.data:
     st.write(f"{row['created_at']} | {row['giocatore1']} vs {row['giocatore2']} | "
              f"Set: {row['set1']}, {row['set2']}, {row['set3']} | Punti: {row['punti_g1']} - {row['punti_g2']} | Vincitore: {row['vincitore']}")
 
 # ✅ Mostra classifica aggiornata
-st.subheader("Classifica aggiornata")
-classifica = supabase.table("classifica").select("*").order("punti", desc=True).execute()
+st.subheader(f"Classifica {torneo}")
+classifica = supabase.table(tabella_classifica).select("*").order("punti", desc=True).execute()
 st.table(classifica.data)
