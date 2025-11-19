@@ -112,4 +112,3 @@ for row in res.data:
 st.subheader("Classifica aggiornata")
 classifica = supabase.table("classifica").select("*").order("punti", desc=True).execute()
 st.table(classifica.data)
-
