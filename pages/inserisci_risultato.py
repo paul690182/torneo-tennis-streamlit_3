@@ -10,8 +10,16 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 torneo = st.selectbox("Seleziona torneo", ["Advanced", "Top"])
 
 # ✅ Liste giocatori per ogni torneo
-giocatori_advanced = ["Francesco M", "Pasquale V", "Paolo R", "Leo S", "Gianni F", "Simone", "Marco", "Riccardo"]
-giocatori_top = ["Leonardino", "Marco", "Simone", "Salvatore", "Riccardo", "Giuseppe", "Massimo", "Cris Cosso"]
+giocatori_advanced = [
+    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna", "Maura",
+    "Paolo Mattioli", "Paola Colonna", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino",
+    "Gianni", "Leonardo", "Francesco M.", "Leonardino", "Federico", "Luca", "Adriano"
+]
+
+giocatori_top = [
+    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni", "Andrea P.",
+    "Giuseppe", "Salvatore"
+]
 
 lista_giocatori = giocatori_advanced if torneo == "Advanced" else giocatori_top
 tabella = "partite_advanced" if torneo == "Advanced" else "partite_top"
@@ -19,12 +27,11 @@ tabella = "partite_advanced" if torneo == "Advanced" else "partite_top"
 st.title(f"Inserisci risultato ({torneo})")
 
 # ✅ Selezione giocatori
-giocatore1 = st.selectbox("Giocatore 1", lista_giocatori)
+giocatore1 = st.selectbox("Giocatore 1", lista_giocatori, key="giocatore1")
 giocatore2 = st.selectbox(
     "Giocatore 2",
     [g for g in lista_giocatori if g != giocatore1],
-    index=None,
-    placeholder="Seleziona il secondo giocatore"
+    key="giocatore2"
 )
 
 # ✅ Debug visivo
@@ -33,7 +40,7 @@ st.write(f"DEBUG → Giocatore 1: {giocatore1}, Giocatore 2: {giocatore2}")
 # ✅ Inserimento set
 set1 = st.text_input("Set 1 (es. 6-3)")
 set2 = st.text_input("Set 2 (es. 6-4)")
-set3 = st.text_input("Set 3 (es. 7-5 o vuoto)")
+set3 = st.text_input("Set 3 (opzionale, es. 7-5)")
 
 # ✅ Calcolo automatico tipo vittoria e punti
 def calcola_punti(set1, set2, set3):
@@ -68,7 +75,7 @@ def aggiorna_classifica(giocatore, punti):
         supabase.table("classifica").update({"punti": punti_attuali + punti}).eq("giocatore", giocatore).execute()
 
 if st.button("Salva risultato"):
-    if giocatore2 is None:
+    if not giocatore2:
         st.error("Seleziona il secondo giocatore!")
     else:
         tipo_vittoria, punti_g1, punti_g2 = calcola_punti(set1, set2, set3)
@@ -91,6 +98,9 @@ if st.button("Salva risultato"):
         aggiorna_classifica(giocatore1, punti_g1)
         aggiorna_classifica(giocatore2, punti_g2)
 
+        # Reset form
+        st.experimental_rerun()
+
 # ✅ Mostra ultimi risultati
 st.subheader(f"Ultimi risultati ({torneo})")
 res = supabase.table(tabella).select("*").order("created_at", desc=True).limit(10).execute()
@@ -102,3 +112,4 @@ for row in res.data:
 st.subheader("Classifica aggiornata")
 classifica = supabase.table("classifica").select("*").order("punti", desc=True).execute()
 st.table(classifica.data)
+
