@@ -1,9 +1,8 @@
 import streamlit as st
 from supabase import create_client
+from supabase_config import SUPABASE_URL, SUPABASE_KEY  # Importa credenziali dal file
 
-# Configurazione Supabase
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+# Connessione a Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("Inserisci Risultato")
@@ -23,10 +22,20 @@ def inserisci_partita(torneo, giocatore1, giocatore2, set_list):
     tabella_risultati = "risultati_top" if torneo == "top" else "risultati_advanced"
     tabella_classifica = "classifica_top" if torneo == "top" else "classifica_advanced"
 
-    # Determina vincitore (logica semplice: chi vince più set)
+    # Conta i set vinti da ciascun giocatore
     sets_g1 = sum([1 for s in set_list if s and s.split("-")[0] > s.split("-")[1]])
     sets_g2 = sum([1 for s in set_list if s and s.split("-")[0] < s.split("-")[1]])
+
     vincitore = giocatore1 if sets_g1 > sets_g2 else giocatore2
+    sconfitto = giocatore2 if vincitore == giocatore1 else giocatore1
+
+    # Calcola punti in base al risultato
+    if vincitore == giocatore1:
+        punti_vincitore = 3 if sets_g1 == 2 and sets_g2 == 0 else 2
+        punti_sconfitto = 1 if sets_g2 == 1 else 0
+    else:
+        punti_vincitore = 3 if sets_g2 == 2 and sets_g1 == 0 else 2
+        punti_sconfitto = 1 if sets_g1 == 1 else 0
 
     # Inserisci risultato
     supabase.table(tabella_risultati).insert({
@@ -39,9 +48,9 @@ def inserisci_partita(torneo, giocatore1, giocatore2, set_list):
     }).execute()
 
     # Aggiorna classifica
-    aggiorna_classifica(tabella_classifica, vincitore, giocatore1 if vincitore != giocatore1 else giocatore2)
+    aggiorna_classifica(tabella_classifica, vincitore, sconfitto, punti_vincitore, punti_sconfitto)
 
-def aggiorna_classifica(tabella, vincitore, sconfitto):
+def aggiorna_classifica(tabella, vincitore, sconfitto, punti_vincitore, punti_sconfitto):
     # Leggi riga vincitore
     vincitore_row = supabase.table(tabella).select("*").eq("giocatore", vincitore).execute().data
     sconfitto_row = supabase.table(tabella).select("*").eq("giocatore", sconfitto).execute().data
@@ -61,12 +70,12 @@ def aggiorna_classifica(tabella, vincitore, sconfitto):
 
     supabase.table(tabella).update({
         "vinte": nuove_vinte,
-        "punti": vincitore_row[0].get("punti", 0) + 3  # 3 punti per vittoria
+        "punti": vincitore_row[0].get("punti", 0) + punti_vincitore
     }).eq("giocatore", vincitore).execute()
 
     supabase.table(tabella).update({
         "perse": nuove_perse,
-        "punti": sconfitto_row[0].get("punti", 0) + 1  # 1 punto per sconfitta
+        "punti": sconfitto_row[0].get("punti", 0) + punti_sconfitto
     }).eq("giocatore", sconfitto).execute()
 
 # Bottone per inserire risultato
@@ -76,4 +85,3 @@ if st.button("Inserisci Risultato"):
         st.success("Risultato inserito e classifica aggiornata!")
     else:
         st.error("Inserisci due giocatori diversi e almeno due set.")
-
