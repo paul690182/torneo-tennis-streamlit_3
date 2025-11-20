@@ -55,7 +55,7 @@ def aggiorna_classifica(tabella, vincitore, sconfitto):
         supabase.table(tabella).insert({"giocatore": sconfitto, "vinte": 0, "perse": 0, "punti": 0}).execute()
         sconfitto_row = [{"vinte": 0, "perse": 0, "punti": 0}]
 
-    # Aggiorna valori
+    # Aggiorna valori usando .get() per evitare KeyError
     nuove_vinte = vincitore_row[0].get("vinte", 0) + 1
     nuove_perse = sconfitto_row[0].get("perse", 0) + 1
 
@@ -76,3 +76,4 @@ if st.button("Inserisci Risultato"):
         st.success("Risultato inserito e classifica aggiornata!")
     else:
         st.error("Inserisci due giocatori diversi e almeno due set.")
+
