@@ -1,10 +1,8 @@
 import streamlit as st
 from supabase import create_client
-
-# Configurazione Supabase
 from supabase_config import SUPABASE_URL, SUPABASE_KEY
-from supabase import create_client
 
+# Connessione a Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Liste giocatori
@@ -20,6 +18,7 @@ ADVANCED_PLAYERS = [
 ]
 
 # Funzione per calcolare i punti
+
 def calcola_punti(set_list):
     giocatore1_sets = 0
     giocatore2_sets = 0
@@ -45,18 +44,40 @@ def calcola_punti(set_list):
         else:
             return vincitore, sconfitto, 2, 1
 
-# Funzione per aggiornare la classifica
+# Funzione per aggiornare la classifica senza RPC
+
 def aggiorna_classifica(torneo, vincitore, sconfitto, punti_vincitore, punti_sconfitto):
     tabella = "classifica_top" if torneo == "Top" else "classifica_advanced"
-    supabase.table(tabella).update({"punti": supabase.rpc("increment", {"col": "punti", "val": punti_vincitore}),
-                                    "vinte": supabase.rpc("increment", {"col": "vinte", "val": 1})}).eq("giocatore", vincitore).execute()
-    supabase.table(tabella).update({"punti": supabase.rpc("increment", {"col": "punti", "val": punti_sconfitto}),
-                                    "perse": supabase.rpc("increment", {"col": "perse", "val": 1})}).eq("giocatore", sconfitto).execute()
 
-# Funzione per inserire la partita
+    # Aggiorna vincitore
+    vincitore_row = supabase.table(tabella).select("*").eq("giocatore", vincitore).execute().data[0]
+    nuovo_punteggio_vincitore = vincitore_row["punti"] + punti_vincitore
+    nuove_vinte = vincitore_row["vinte"] + 1
+    supabase.table(tabella).update({"punti": nuovo_punteggio_vincitore, "vinte": nuove_vinte}).eq("giocatore", vincitore).execute()
+
+    # Aggiorna sconfitto
+    sconfitto_row = supabase.table(tabella).select("*").eq("giocatore", sconfitto).execute().data[0]
+    nuovo_punteggio_sconfitto = sconfitto_row["punti"] + punti_sconfitto
+    nuove_perse = sconfitto_row["perse"] + 1
+    supabase.table(tabella).update({"punti": nuovo_punteggio_sconfitto, "perse": nuove_perse}).eq("giocatore", sconfitto).execute()
+
+# Funzione per inserire la partita con controllo duplicati
+
 def inserisci_partita(torneo, giocatore1, giocatore2, set_list):
     tabella = "partite_top" if torneo == "Top" else "partite_advanced"
+
+    # Controllo duplicati (anche inverso)
+    existing_match = supabase.table(tabella).select("*").or_(f"giocatore1.eq.{giocatore1},giocatore2.eq.{giocatore2}").execute().data
+    inverse_match = supabase.table(tabella).select("*").or_(f"giocatore1.eq.{giocatore2},giocatore2.eq.{giocatore1}").execute().data
+
+    if existing_match or inverse_match:
+        st.error("Questa partita è già stata inserita!")
+        return
+
+    # Inserisci partita
     supabase.table(tabella).insert({"giocatore1": giocatore1, "giocatore2": giocatore2, "risultato": ", ".join(set_list)}).execute()
+
+    # Calcola punti e aggiorna classifica
     vincitore, sconfitto, punti_vincitore, punti_sconfitto = calcola_punti(set_list)
     if vincitore == "giocatore1":
         aggiorna_classifica(torneo, giocatore1, giocatore2, punti_vincitore, punti_sconfitto)
@@ -81,6 +102,5 @@ if st.button("Salva Risultato"):
     if set_input:
         set_list = [s.strip() for s in set_input.split(',')]
         inserisci_partita(torneo, giocatore1, giocatore2, set_list)
-        st.success("Risultato inserito e classifica aggiornata!")
     else:
         st.error("Inserisci almeno un set valido.")
