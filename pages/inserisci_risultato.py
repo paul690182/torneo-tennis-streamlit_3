@@ -2,8 +2,9 @@ import streamlit as st
 from supabase import create_client
 
 # Configurazione Supabase
-SUPABASE_URL = "YOUR_SUPABASE_URL"
-SUPABASE_KEY = "YOUR_SUPABASE_KEY"
+from supabase_config import SUPABASE_URL, SUPABASE_KEY
+from supabase import create_client
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Liste giocatori
