@@ -1,43 +1,30 @@
 import streamlit as st
 from supabase import create_client
+from supabase_config import SUPABASE_URL, SUPABASE_KEY  # Importa credenziali dal file
 import pandas as pd
 
-# Configurazione Supabase
-from supabase_config import SUPABASE_URL, SUPABASE_KEY
-from supabase import create_client
-
+# Connessione a Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+st.title("Classifica Tornei")
 
-st.title("Classifica Torneo Tennis")
+# Selezione torneo
+TORNEI = ["top", "advanced"]
+torneo = st.selectbox("Seleziona il torneo", TORNEI)
 
-# Funzione per ottenere la classifica da Supabase
-def get_classifica(tabella):
-    response = supabase.table(tabella).select("*").execute()
-    data = response.data
-    if data:
-        df = pd.DataFrame(data)
-        df = df.sort_values(by="punti", ascending=False)
-        return df
-    else:
-        return pd.DataFrame()
+tabella_classifica = "classifica_top" if torneo == "top" else "classifica_advanced"
 
-# Selezione torneo (opzionale)
-torneo = st.radio("Seleziona la classifica da visualizzare", ["Top", "Advanced", "Entrambe"])
+# Recupera dati classifica
+response = supabase.table(tabella_classifica).select("*").execute()
+dati = response.data
 
-if torneo == "Top":
-    st.subheader("Classifica Top")
-    df_top = get_classifica("classifica_top")
-    st.table(df_top)
-elif torneo == "Advanced":
-    st.subheader("Classifica Advanced")
-    df_adv = get_classifica("classifica_advanced")
-    st.table(df_adv)
+if dati:
+    # Converti in DataFrame e ordina per punti e vinte
+    df = pd.DataFrame(dati)
+    if "punti" in df.columns and "vinte" in df.columns:
+        df = df.sort_values(by=["punti", "vinte"], ascending=[False, False])
+
+    st.subheader(f"Classifica {torneo.capitalize()}")
+    st.dataframe(df)
 else:
-    st.subheader("Classifica Top")
-    df_top = get_classifica("classifica_top")
-    st.table(df_top)
-
-    st.subheader("Classifica Advanced")
-    df_adv = get_classifica("classifica_advanced")
-    st.table(df_adv)
+    st.warning("Nessun dato disponibile per questo torneo.")
