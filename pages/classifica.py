@@ -3,9 +3,11 @@ from supabase import create_client
 import pandas as pd
 
 # Configurazione Supabase
-SUPABASE_URL = "YOUR_SUPABASE_URL"
-SUPABASE_KEY = "YOUR_SUPABASE_KEY"
+from supabase_config import SUPABASE_URL, SUPABASE_KEY
+from supabase import create_client
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 
 st.title("Classifica Torneo Tennis")
 
