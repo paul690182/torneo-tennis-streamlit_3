@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Streamlit page: classifica.py
@@ -7,10 +8,6 @@ Funzioni principali:
 - Calcola statistiche: partite giocate, set vinti, set persi, differenza set
 - Ordina per punti decrescenti e differenza set
 - Mostra una tabella ordinata
-
-Prerequisiti:
-- Variabili d'ambiente SUPABASE_URL e SUPABASE_KEY
-- Libreria supabase installata
 """
 import os
 import streamlit as st
@@ -23,7 +20,7 @@ except Exception:
 
 st.set_page_config(page_title="Classifica", page_icon="🏆", layout="wide")
 
-@st.cache_data(ttl=300)
+@st.cache_resource
 def get_supabase_client():
     url = os.getenv("SUPABASE_URL", "").strip()
     key = os.getenv("SUPABASE_KEY", "").strip()
@@ -33,24 +30,40 @@ def get_supabase_client():
         raise RuntimeError("Libreria supabase non disponibile.")
     return create_client(url, key)
 
+@st.cache_data(ttl=300)
 def get_classifica(torneo: str):
     client = get_supabase_client()
     tabella_classifica = "classifica_top" if torneo == "top" else "classifica_advanced"
     res = client.table(tabella_classifica).select("giocatore,punti").execute()
     return res.data or []
 
+@st.cache_data(ttl=300)
 def get_risultati(torneo: str):
     client = get_supabase_client()
     tabella_risultati = "risultati_top" if torneo == "top" else "risultati_advanced"
-    res = client.table(tabella_risultati).select("giocatore1,giocatore2,set1_g1,set1_g2,set2_g1,set2_g2,set3_g1,set3_g2").execute()
+    res = client.table(tabella_risultati).select(
+        "giocatore1,giocatore2,set1_g1,set1_g2,set2_g1,set2_g2,set3_g1,set3_g2"
+    ).execute()
     return res.data or []
 
+@st.cache_data(ttl=60)
 def calcola_statistiche(classifica, risultati):
-    stats = {row['giocatore']: {'punti': row['punti'], 'partite': 0, 'set_vinti': 0, 'set_persi': 0} for row in classifica}
+    # Inizializza stats anche per giocatori che compaiono solo nei risultati
+    stats = {}
+    for row in classifica:
+        g = row['giocatore']
+        stats[g] = {'punti': int(row.get('punti', 0) or 0), 'partite': 0, 'set_vinti': 0, 'set_persi': 0}
+
     for r in risultati:
         g1 = r['giocatore1']
         g2 = r['giocatore2']
-        sets = [(r['set1_g1'], r['set1_g2']), (r.get('set2_g1'), r.get('set2_g2')), (r.get('set3_g1'), r.get('set3_g2'))]
+        stats.setdefault(g1, {'punti': 0, 'partite': 0, 'set_vinti': 0, 'set_persi': 0})
+        stats.setdefault(g2, {'punti': 0, 'partite': 0, 'set_vinti': 0, 'set_persi': 0})
+        sets = [
+            (r['set1_g1'], r['set1_g2']),
+            (r.get('set2_g1'), r.get('set2_g2')),
+            (r.get('set3_g1'), r.get('set3_g2')),
+        ]
         stats[g1]['partite'] += 1
         stats[g2]['partite'] += 1
         for s in sets:
@@ -61,14 +74,23 @@ def calcola_statistiche(classifica, risultati):
                 elif s[1] > s[0]:
                     stats[g2]['set_vinti'] += 1
                     stats[g1]['set_persi'] += 1
+
     df = []
     for g, v in stats.items():
         diff_set = v['set_vinti'] - v['set_persi']
-        df.append({'Giocatore': g, 'Punti': v['punti'], 'Partite': v['partite'], 'Set vinti': v['set_vinti'], 'Set persi': v['set_persi'], 'Diff set': diff_set})
+        df.append({
+            'Giocatore': g,
+            'Punti': v['punti'],
+            'Partite': v['partite'],
+            'Set vinti': v['set_vinti'],
+            'Set persi': v['set_persi'],
+            'Diff set': diff_set,
+        })
     df = pd.DataFrame(df)
-    df.sort_values(by=['Punti', 'Diff set'], ascending=[False, False], inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    df.insert(0, 'Posizione', df.index + 1)
+    if not df.empty:
+        df.sort_values(by=['Punti', 'Diff set', 'Giocatore'], ascending=[False, False, True], inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        df.insert(0, 'Posizione', df.index + 1)
     return df
 
 st.title("Classifica torneo")
@@ -83,4 +105,3 @@ try:
     st.dataframe(df, use_container_width=True)
 except Exception as e:
     st.error(f"Errore nel caricamento classifica: {e}")
-
