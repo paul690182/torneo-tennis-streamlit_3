@@ -60,8 +60,10 @@ def salva_risultato(torneo: str, giocatore1: str, giocatore2: str,
     return client.table(tabella_risultati).insert(payload).execute()
 
 # --- Aggiorna classifica con incremento punti
+
 def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
                         set1: Tuple[int,int], set2: Tuple[int,int] | None, set3: Tuple[int,int] | None):
+    # Conta set vinti
     g1_sets = 0
     g2_sets = 0
     for s in [set1, set2, set3]:
@@ -71,6 +73,7 @@ def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
             elif s[1] > s[0]:
                 g2_sets += 1
 
+    # Determina vincitore/sconfitto
     if g1_sets > g2_sets:
         vincitore = giocatore1
         sconfitto = giocatore2
@@ -78,12 +81,12 @@ def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
         vincitore = giocatore2
         sconfitto = giocatore1
 
-    # Punti: 2-0 → 3/0, 2-1 → 3/1
-    if abs(g1_sets - g2_sets) == 2:
+    # Punti: 2-0 -> 3/0, 2-1 -> 2/1
+    if abs(g1_sets - g2_sets) == 2:   # 2-0
         punti_vincitore = 3
         punti_sconfitto = 0
-    else:
-        punti_vincitore = 3
+    else:                              # 2-1
+        punti_vincitore = 2
         punti_sconfitto = 1
 
     client = get_supabase_client()
@@ -103,6 +106,7 @@ def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
     incrementa_punti(sconfitto, punti_sconfitto)
 
     return vincitore, punti_vincitore, sconfitto, punti_sconfitto
+
 
 # --- UI
 st.title("Inserisci risultato partita")
