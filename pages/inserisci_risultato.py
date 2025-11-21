@@ -1,87 +1,208 @@
+
+# -*- coding: utf-8 -*-
+"""
+Streamlit page: inserisci_risultato.py
+
+Funzioni principali:
+- Carica la lista dei giocatori da Supabase (tabella classifica_top o classifica_advanced)
+- Mostra menu a tendina (selectbox) per Giocatore 1 e Giocatore 2
+- Impedisce la selezione dello stesso giocatore due volte
+- Consente l'inserimento del risultato dell'incontro
+- Salva il risultato sul DB (tabella risultati_top o risultati_advanced)
+
+Prerequisiti:
+- Variabili d'ambiente SUPABASE_URL e SUPABASE_KEY settate (Render/Supabase)
+- Libreria supabase (supabase-py) installata
+    pip install supabase
+
+Autore: adattato per Giuseppe D'Eramo
+"""
+import os
+from typing import List, Tuple
+
 import streamlit as st
-from supabase import create_client
-from supabase_config import SUPABASE_URL, SUPABASE_KEY  # Importa credenziali dal file
 
-# Connessione a Supabase
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Import "lazily" per evitare errori locali quando l'SDK non è disponibile.
+try:
+    from supabase import create_client
+except Exception:
+    create_client = None
 
-st.title("Inserisci Risultato")
+# -------------------------------
+# Configurazione pagina Streamlit
+# -------------------------------
+st.set_page_config(page_title="Inserisci risultato", page_icon="🎾", layout="centered")
 
-# Selezione torneo
-TORNEI = ["top", "advanced"]
-torneo = st.selectbox("Seleziona il torneo", TORNEI)
+# -------------------------------
+# Utility DB
+# -------------------------------
+@st.cache_data(ttl=300)
+def get_supabase_client():
+    """Restituisce il client Supabase usando le variabili d'ambiente.
+    Cache per 5 minuti.
+    """
+    url = os.getenv("SUPABASE_URL", "").strip()
+    key = os.getenv("SUPABASE_KEY", "").strip()
+    if not url or not key:
+        raise RuntimeError(
+            "Variabili d'ambiente SUPABASE_URL/SUPABASE_KEY mancanti."
+        )
+    if create_client is None:
+        raise RuntimeError(
+            "Libreria supabase non disponibile. Installa 'supabase' (supabase-py)."
+        )
+    return create_client(url, key)
 
-giocatore1 = st.text_input("Giocatore 1")
-giocatore2 = st.text_input("Giocatore 2")
-set1 = st.text_input("Set 1 (es. 6-4)")
-set2 = st.text_input("Set 2 (es. 6-4)")
-set3 = st.text_input("Set 3 (opzionale)")
 
-# Funzione per inserire partita e aggiornare classifica
-def inserisci_partita(torneo, giocatore1, giocatore2, set_list):
-    tabella_risultati = "risultati_top" if torneo == "top" else "risultati_advanced"
+def get_giocatori(torneo: str) -> List[str]:
+    """Recupera la lista dei giocatori dalla tabella classifica_*.
+
+    Args:
+        torneo: "top" oppure "advanced".
+    Returns:
+        Lista di nomi giocatori (ordinati alfabeticamente).
+    """
+    client = get_supabase_client()
     tabella_classifica = "classifica_top" if torneo == "top" else "classifica_advanced"
+    # Seleziona la colonna "giocatore"; se nel DB la colonna ha nome diverso, adattare qui.
+    res = client.table(tabella_classifica).select("giocatore").execute()
+    data = res.data or []
+    giocatori = sorted([row.get("giocatore", "") for row in data if row.get("giocatore")])
+    return giocatori
 
-    # Conta i set vinti da ciascun giocatore
-    sets_g1 = sum([1 for s in set_list if s and s.split("-")[0] > s.split("-")[1]])
-    sets_g2 = sum([1 for s in set_list if s and s.split("-")[0] < s.split("-")[1]])
 
-    vincitore = giocatore1 if sets_g1 > sets_g2 else giocatore2
-    sconfitto = giocatore2 if vincitore == giocatore1 else giocatore1
+def salva_risultato(
+    torneo: str,
+    giocatore1: str,
+    giocatore2: str,
+    set1: Tuple[int, int],
+    set2: Tuple[int, int] | None,
+    set3: Tuple[int, int] | None,
+    note: str,
+):
+    """Salva il risultato nella tabella risultati_*.
 
-    # Calcola punti in base al risultato
-    if vincitore == giocatore1:
-        punti_vincitore = 3 if sets_g1 == 2 and sets_g2 == 0 else 2
-        punti_sconfitto = 1 if sets_g2 == 1 else 0
-    else:
-        punti_vincitore = 3 if sets_g2 == 2 and sets_g1 == 0 else 2
-        punti_sconfitto = 1 if sets_g1 == 1 else 0
+    La tabella dovrebbe contenere almeno i seguenti campi:
+    - giocatore1 (text)
+    - giocatore2 (text)
+    - set1_g1 (int)
+    - set1_g2 (int)
+    - set2_g1 (int, nullable)
+    - set2_g2 (int, nullable)
+    - set3_g1 (int, nullable)
+    - set3_g2 (int, nullable)
+    - note (text, nullable)
+    - created_at (timestamp, default now()) opzionale
+    """
+    client = get_supabase_client()
+    tabella_risultati = "risultati_top" if torneo == "top" else "risultati_advanced"
 
-    # Inserisci risultato
-    supabase.table(tabella_risultati).insert({
+    payload = {
         "giocatore1": giocatore1,
         "giocatore2": giocatore2,
-        "set1": set_list[0],
-        "set2": set_list[1],
-        "set3": set_list[2],
-        "vincitore": vincitore
-    }).execute()
+        "set1_g1": set1[0],
+        "set1_g2": set1[1],
+        "set2_g1": set2[0] if set2 else None,
+        "set2_g2": set2[1] if set2 else None,
+        "set3_g1": set3[0] if set3 else None,
+        "set3_g2": set3[1] if set3 else None,
+        "note": note or None,
+    }
 
-    # Aggiorna classifica
-    aggiorna_classifica(tabella_classifica, vincitore, sconfitto, punti_vincitore, punti_sconfitto)
+    res = client.table(tabella_risultati).insert(payload).execute()
+    return res
 
-def aggiorna_classifica(tabella, vincitore, sconfitto, punti_vincitore, punti_sconfitto):
-    # Leggi riga vincitore
-    vincitore_row = supabase.table(tabella).select("*").eq("giocatore", vincitore).execute().data
-    sconfitto_row = supabase.table(tabella).select("*").eq("giocatore", sconfitto).execute().data
 
-    # Se non esiste, crea la riga
-    if not vincitore_row:
-        supabase.table(tabella).insert({"giocatore": vincitore, "vinte": 0, "perse": 0, "punti": 0}).execute()
-        vincitore_row = [{"vinte": 0, "perse": 0, "punti": 0}]
+# -------------------------------
+# UI
+# -------------------------------
+st.title("Inserisci risultato partita")
 
-    if not sconfitto_row:
-        supabase.table(tabella).insert({"giocatore": sconfitto, "vinte": 0, "perse": 0, "punti": 0}).execute()
-        sconfitto_row = [{"vinte": 0, "perse": 0, "punti": 0}]
+with st.sidebar:
+    st.header("Impostazioni")
+    torneo = st.radio("Seleziona torneo", ["top", "advanced"], index=0, help="Scegli quale torneo aggiornare.")
+    st.caption("I nomi dei giocatori vengono caricati dalla tabella classifica del torneo selezionato.")
 
-    # Aggiorna valori usando .get() per evitare KeyError
-    nuove_vinte = vincitore_row[0].get("vinte", 0) + 1
-    nuove_perse = sconfitto_row[0].get("perse", 0) + 1
+# Caricamento lista giocatori
+try:
+    giocatori = get_giocatori(torneo)
+except Exception as e:
+    st.error(f"Errore nel caricamento giocatori: {e}")
+    giocatori = []
 
-    supabase.table(tabella).update({
-        "vinte": nuove_vinte,
-        "punti": vincitore_row[0].get("punti", 0) + punti_vincitore
-    }).eq("giocatore", vincitore).execute()
+if not giocatori:
+    st.warning("Nessun giocatore trovato. Verifica la tabella classifica_* su Supabase e le variabili d'ambiente.")
+    st.stop()
 
-    supabase.table(tabella).update({
-        "perse": nuove_perse,
-        "punti": sconfitto_row[0].get("punti", 0) + punti_sconfitto
-    }).eq("giocatore", sconfitto).execute()
+col1, col2 = st.columns(2)
+with col1:
+    giocatore1 = st.selectbox("Giocatore 1", giocatori, index=0)
+with col2:
+    # Escludiamo il giocatore1 dalla lista del secondo menu.
+    giocatori2 = [g for g in giocatori if g != giocatore1]
+    if not giocatori2:
+        st.error("Serve almeno 2 giocatori nella lista.")
+        st.stop()
+    giocatore2 = st.selectbox("Giocatore 2", giocatori2, index=0)
 
-# Bottone per inserire risultato
-if st.button("Inserisci Risultato"):
-    if giocatore1 and giocatore2 and giocatore1 != giocatore2:
-        inserisci_partita(torneo, giocatore1, giocatore2, [set1, set2, set3])
-        st.success("Risultato inserito e classifica aggiornata!")
-    else:
-        st.error("Inserisci due giocatori diversi e almeno due set.")
+st.divider()
+
+st.subheader("Risultato (punteggi dei set)")
+
+# Helper per input del set: due number_input affiancati
+def set_input(label: str) -> Tuple[int, int]:
+    c1, c2 = st.columns(2)
+    with c1:
+        g1 = st.number_input(f"{label} - {giocatore1}", min_value=0, max_value=7, value=6, step=1)
+    with c2:
+        g2 = st.number_input(f"{label} - {giocatore2}", min_value=0, max_value=7, value=4, step=1)
+    return int(g1), int(g2)
+
+set1 = set_input("Set 1")
+use_set2 = st.checkbox("Aggiungi Set 2", value=True)
+set2 = set_input("Set 2") if use_set2 else None
+use_set3 = st.checkbox("Aggiungi Set 3", value=False)
+set3 = set_input("Set 3") if use_set3 else None
+
+note = st.text_input("Note (opzionale)", placeholder="Es. tie-break a 7, infortunio, ecc.")
+
+st.divider()
+
+# Validazioni base
+error_msgs = []
+if giocatore1 == giocatore2:
+    error_msgs.append("Giocatore 1 e Giocatore 2 devono essere diversi.")
+
+# Controllo minimo: almeno set1 deve essere compilato in modo plausibile
+if set1[0] == 0 and set1[1] == 0:
+    error_msgs.append("Il Set 1 non può essere 0-0.")
+
+if error_msgs:
+    for msg in error_msgs:
+        st.error(msg)
+
+# Bottone salva
+col_left, col_right = st.columns([1, 2])
+with col_left:
+    salva = st.button("💾 Salva risultato", type="primary", disabled=bool(error_msgs))
+
+with col_right:
+    st.caption("Il risultato sarà salvato nella tabella risultati del torneo selezionato.")
+
+if salva and not error_msgs:
+    try:
+        res = salva_risultato(
+            torneo=torneo,
+            giocatore1=giocatore1,
+            giocatore2=giocatore2,
+            set1=set1,
+            set2=set2,
+            set3=set3,
+            note=note,
+        )
+        st.success("Risultato salvato correttamente!")
+        if hasattr(res, "data"):
+            st.json(res.data)
+    except Exception as e:
+        st.error(f"Errore nel salvataggio del risultato: {e}")
+        st.stop()
