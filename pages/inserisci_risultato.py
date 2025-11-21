@@ -1,19 +1,14 @@
+
 # -*- coding: utf-8 -*-
 """
 Streamlit page: inserisci_risultato.py
 
 Funzioni principali:
-- Carica la lista dei giocatori da Supabase (tabella classifica_top o classifica_advanced)
-- Mostra menu a tendina (selectbox) per Giocatore 1 e Giocatore 2
-- Impedisce la selezione dello stesso giocatore due volte
-- Consente l'inserimento del risultato dell'incontro
-- Salva il risultato sul DB (tabella risultati_top o risultati_advanced)
-- Aggiorna automaticamente la classifica dopo il salvataggio
-
-Prerequisiti:
-- Variabili d'ambiente SUPABASE_URL e SUPABASE_KEY settate (Render/Supabase)
-- Libreria supabase (supabase-py) installata
-    pip install supabase
+- Carica la lista dei giocatori da Supabase (classifica_top / classifica_advanced)
+- Selectbox per Giocatore 1 / Giocatore 2 (no duplicati)
+- Inserimento set (1–3)
+- Salvataggio risultato (risultati_top / risultati_advanced)
+- Aggiornamento automatico classifica con incremento punti
 """
 import os
 from typing import List, Tuple
@@ -24,16 +19,12 @@ try:
 except Exception:
     create_client = None
 
-# -------------------------------
-# Configurazione pagina Streamlit
-# -------------------------------
 st.set_page_config(page_title="Inserisci risultato", page_icon="🎾", layout="centered")
 
-# -------------------------------
-# Utility DB
-# -------------------------------
-@st.cache_data(ttl=300)
+# --- Client Supabase: usare cache_resource (non serializzabile con pickle)
+@st.cache_resource
 def get_supabase_client():
+    """Crea e cache la risorsa client Supabase (non serializzabile)."""
     url = os.getenv("SUPABASE_URL", "").strip()
     key = os.getenv("SUPABASE_KEY", "").strip()
     if not url or not key:
@@ -51,8 +42,8 @@ def get_giocatori(torneo: str) -> List[str]:
     return giocatori
 
 def salva_risultato(torneo: str, giocatore1: str, giocatore2: str,
-                    set1: Tuple[int,int], set2: Tuple[int,int]|None,
-                    set3: Tuple[int,int]|None, note: str):
+                    set1: Tuple[int,int], set2: Tuple[int,int] | None,
+                    set3: Tuple[int,int] | None, note: str):
     client = get_supabase_client()
     tabella_risultati = "risultati_top" if torneo == "top" else "risultati_advanced"
     payload = {
@@ -68,11 +59,9 @@ def salva_risultato(torneo: str, giocatore1: str, giocatore2: str,
     }
     return client.table(tabella_risultati).insert(payload).execute()
 
-# -------------------------------
-# Aggiorna classifica
-# -------------------------------
+# --- Aggiorna classifica con incremento punti
 def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
-                        set1: Tuple[int,int], set2: Tuple[int,int]|None, set3: Tuple[int,int]|None):
+                        set1: Tuple[int,int], set2: Tuple[int,int] | None, set3: Tuple[int,int] | None):
     g1_sets = 0
     g2_sets = 0
     for s in [set1, set2, set3]:
@@ -89,6 +78,7 @@ def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
         vincitore = giocatore2
         sconfitto = giocatore1
 
+    # Punti: 2-0 → 3/0, 2-1 → 3/1
     if abs(g1_sets - g2_sets) == 2:
         punti_vincitore = 3
         punti_sconfitto = 0
@@ -99,9 +89,13 @@ def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
     client = get_supabase_client()
     tabella_classifica = "classifica_top" if torneo == "top" else "classifica_advanced"
 
-    def incrementa_punti(giocatore, incremento):
+    def incrementa_punti(giocatore: str, incremento: int):
+        # Legge punti attuali, somma e aggiorna
         res = client.table(tabella_classifica).select("punti").eq("giocatore", giocatore).execute()
-        punti_attuali = res.data[0]["punti"] if res.data else 0
+        punti_attuali = 0
+        if res.data:
+            row = res.data[0]
+            punti_attuali = int(row.get("punti", 0) or 0)
         nuovo_valore = punti_attuali + incremento
         client.table(tabella_classifica).update({"punti": nuovo_valore}).eq("giocatore", giocatore).execute()
 
@@ -110,9 +104,7 @@ def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
 
     return vincitore, punti_vincitore, sconfitto, punti_sconfitto
 
-# -------------------------------
-# UI
-# -------------------------------
+# --- UI
 st.title("Inserisci risultato partita")
 
 with st.sidebar:
@@ -135,6 +127,9 @@ with col1:
     giocatore1 = st.selectbox("Giocatore 1", giocatori, index=0)
 with col2:
     giocatori2 = [g for g in giocatori if g != giocatore1]
+    if not giocatori2:
+        st.error("Serve almeno 2 giocatori nella lista.")
+        st.stop()
     giocatore2 = st.selectbox("Giocatore 2", giocatori2, index=0)
 
 st.divider()
@@ -178,4 +173,3 @@ if salva and not error_msgs:
             st.json(res.data)
     except Exception as e:
         st.error(f"Errore nel salvataggio: {e}")
-
