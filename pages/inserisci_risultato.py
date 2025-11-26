@@ -1,179 +1,132 @@
 
-# -*- coding: utf-8 -*-
-"""
-Streamlit page: inserisci_risultato.py
-
-Funzioni principali:
-- Carica la lista dei giocatori da Supabase (classifica_top / classifica_advanced)
-- Selectbox per Giocatore 1 / Giocatore 2 (no duplicati)
-- Inserimento set (1–3)
-- Salvataggio risultato (risultati_top / risultati_advanced)
-- Aggiornamento automatico classifica con incremento punti
-"""
-import os
-from typing import List, Tuple
 import streamlit as st
+import requests
+import os
+from datetime import datetime
 
-try:
-    from supabase import create_client
-except Exception:
-    create_client = None
+# =============================
+# CONFIGURAZIONE SUPABASE
+# =============================
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+HEADERS = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': f'Bearer {SUPABASE_KEY}',
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+}
 
-st.set_page_config(page_title="Inserisci risultato", page_icon="🎾", layout="centered")
+# =============================
+# FUNZIONI DI SUPPORTO
+# =============================
+def log_message(msg, level="info"):
+    if level == "success":
+        st.markdown(f"✅ **{msg}**")
+    elif level == "warning":
+        st.markdown(f"⚠️ **{msg}**")
+    elif level == "error":
+        st.markdown(f"❌ **{msg}**")
+    else:
+        st.markdown(f"ℹ️ {msg}")
 
-# --- Client Supabase: usare cache_resource (non serializzabile con pickle)
-@st.cache_resource
-def get_supabase_client():
-    """Crea e cache la risorsa client Supabase (non serializzabile)."""
-    url = os.getenv("SUPABASE_URL", "").strip()
-    key = os.getenv("SUPABASE_KEY", "").strip()
-    if not url or not key:
-        raise RuntimeError("Variabili d'ambiente SUPABASE_URL/SUPABASE_KEY mancanti.")
-    if create_client is None:
-        raise RuntimeError("Libreria supabase non disponibile. Installa 'supabase'.")
-    return create_client(url, key)
-
-def get_giocatori(torneo: str) -> List[str]:
-    client = get_supabase_client()
-    tabella_classifica = "classifica_top" if torneo == "top" else "classifica_advanced"
-    res = client.table(tabella_classifica).select("giocatore").execute()
-    data = res.data or []
-    giocatori = sorted([row.get("giocatore", "") for row in data if row.get("giocatore")])
-    return giocatori
-
-def salva_risultato(torneo: str, giocatore1: str, giocatore2: str,
-                    set1: Tuple[int,int], set2: Tuple[int,int] | None,
-                    set3: Tuple[int,int] | None, note: str):
-    client = get_supabase_client()
-    tabella_risultati = "risultati_top" if torneo == "top" else "risultati_advanced"
+def salva_risultato(giocatore1, giocatore2, set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2, note):
+    url = f"{SUPABASE_URL}/rest/v1/risultati_advanced"
     payload = {
         "giocatore1": giocatore1,
         "giocatore2": giocatore2,
-        "set1_g1": set1[0],
-        "set1_g2": set1[1],
-        "set2_g1": set2[0] if set2 else None,
-        "set2_g2": set2[1] if set2 else None,
-        "set3_g1": set3[0] if set3 else None,
-        "set3_g2": set3[1] if set3 else None,
-        "note": note or None,
+        "set1_g1": set1_g1,
+        "set1_g2": set1_g2,
+        "set2_g1": set2_g1,
+        "set2_g2": set2_g2,
+        "set3_g1": set3_g1,
+        "set3_g2": set3_g2,
+        "note": note,
+        "created_at": datetime.utcnow().isoformat()
     }
-    return client.table(tabella_risultati).insert(payload).execute()
+    try:
+        response = requests.post(url, headers=HEADERS, json=payload)
+        if response.status_code in (200, 201):
+            log_message("Risultato salvato correttamente nel database.", "success")
+        else:
+            log_message(f"Errore nel salvataggio: {response.status_code} - {response.text}", "error")
+    except Exception as e:
+        log_message(f"Eccezione durante il salvataggio: {e}", "error")
 
-# --- Aggiorna classifica con incremento punti
+# =============================
+# INTERFACCIA STREAMLIT
+# =============================
+st.title("🏆 Inserisci Risultato")
+st.write("Compila i punteggi dei set e salva il risultato.")
 
-def aggiorna_classifica(torneo: str, giocatore1: str, giocatore2: str,
-                        set1: Tuple[int,int], set2: Tuple[int,int] | None, set3: Tuple[int,int] | None):
-    # Conta set vinti
-    g1_sets = 0
-    g2_sets = 0
-    for s in [set1, set2, set3]:
-        if s:
-            if s[0] > s[1]:
-                g1_sets += 1
-            elif s[1] > s[0]:
-                g2_sets += 1
+# Selezione giocatori (dropdown)
+st.subheader("Giocatori")
+# Lista statica (puoi sostituire con query al DB)
+giocatori = ["Daniele M.", "Stefano D. R.", "Paolo R.", "Francesco M.", "Massimo B.", "Simone V.", "Gianni F.", "Leo S.", "Giovanni D.", "Andrea P.", "Maurizio P."]
+giocatore1 = st.selectbox("Giocatore A", giocatori)
+giocatore2 = st.selectbox("Giocatore B", [g for g in giocatori if g != giocatore1])
 
-    # Determina vincitore/sconfitto
-    if g1_sets > g2_sets:
-        vincitore = giocatore1
-        sconfitto = giocatore2
-    else:
-        vincitore = giocatore2
-        sconfitto = giocatore1
-
-    # Punti: 2-0 -> 3/0, 2-1 -> 2/1
-    if abs(g1_sets - g2_sets) == 2:   # 2-0
-        punti_vincitore = 3
-        punti_sconfitto = 0
-    else:                              # 2-1
-        punti_vincitore = 2
-        punti_sconfitto = 1
-
-    client = get_supabase_client()
-    tabella_classifica = "classifica_top" if torneo == "top" else "classifica_advanced"
-
-    def incrementa_punti(giocatore: str, incremento: int):
-        # Legge punti attuali, somma e aggiorna
-        res = client.table(tabella_classifica).select("punti").eq("giocatore", giocatore).execute()
-        punti_attuali = 0
-        if res.data:
-            row = res.data[0]
-            punti_attuali = int(row.get("punti", 0) or 0)
-        nuovo_valore = punti_attuali + incremento
-        client.table(tabella_classifica).update({"punti": nuovo_valore}).eq("giocatore", giocatore).execute()
-
-    incrementa_punti(vincitore, punti_vincitore)
-    incrementa_punti(sconfitto, punti_sconfitto)
-
-    return vincitore, punti_vincitore, sconfitto, punti_sconfitto
-
-
-# --- UI
-st.title("Inserisci risultato partita")
-
-with st.sidebar:
-    st.header("Impostazioni")
-    torneo = st.radio("Seleziona torneo", ["top", "advanced"], index=0)
-    st.caption("I nomi dei giocatori vengono caricati dalla tabella classifica del torneo selezionato.")
-
-try:
-    giocatori = get_giocatori(torneo)
-except Exception as e:
-    st.error(f"Errore nel caricamento giocatori: {e}")
-    giocatori = []
-
-if not giocatori:
-    st.warning("Nessun giocatore trovato.")
-    st.stop()
-
-col1, col2 = st.columns(2)
-with col1:
-    giocatore1 = st.selectbox("Giocatore 1", giocatori, index=0)
-with col2:
-    giocatori2 = [g for g in giocatori if g != giocatore1]
-    if not giocatori2:
-        st.error("Serve almeno 2 giocatori nella lista.")
-        st.stop()
-    giocatore2 = st.selectbox("Giocatore 2", giocatori2, index=0)
-
-st.divider()
+st.markdown("---")
 st.subheader("Risultato (punteggi dei set)")
 
-def set_input(label: str) -> Tuple[int,int]:
-    c1, c2 = st.columns(2)
-    with c1:
-        g1 = st.number_input(f"{label} - {giocatore1}", min_value=0, max_value=7, value=6)
-    with c2:
-        g2 = st.number_input(f"{label} - {giocatore2}", min_value=0, max_value=7, value=4)
-    return int(g1), int(g2)
+# --- Set 1 ---
+set1_g1 = st.number_input("Set 1 - Giocatore A", min_value=0, max_value=7, step=1)
+set1_g2 = st.number_input("Set 1 - Giocatore B", min_value=0, max_value=7, step=1)
 
-set1 = set_input("Set 1")
-use_set2 = st.checkbox("Aggiungi Set 2", value=True)
-set2 = set_input("Set 2") if use_set2 else None
-use_set3 = st.checkbox("Aggiungi Set 3", value=False)
-set3 = set_input("Set 3") if use_set3 else None
+# --- Set 2 ---
+aggiungi_set2 = st.checkbox("Aggiungi Set 2")
+if aggiungi_set2:
+    set2_g1 = st.number_input("Set 2 - Giocatore A", min_value=0, max_value=7, step=1)
+    set2_g2 = st.number_input("Set 2 - Giocatore B", min_value=0, max_value=7, step=1)
+else:
+    set2_g1, set2_g2 = 0, 0
 
-note = st.text_input("Note (opzionale)")
+# --- Set 3 (super tie-break) ---
+aggiungi_set3 = st.checkbox("Aggiungi Set 3")
+if aggiungi_set3:
+    set3_g1 = st.number_input("Set 3 - Giocatore A", min_value=0, max_value=20, step=1)
+    set3_g2 = st.number_input("Set 3 - Giocatore B", min_value=0, max_value=20, step=1)
+else:
+    set3_g1, set3_g2 = 0, 0
 
-error_msgs = []
-if giocatore1 == giocatore2:
-    error_msgs.append("Giocatore 1 e Giocatore 2 devono essere diversi.")
-if set1[0] == 0 and set1[1] == 0:
-    error_msgs.append("Il Set 1 non può essere 0-0.")
+note = st.text_area("Note (opzionale)")
 
-if error_msgs:
-    for msg in error_msgs:
-        st.error(msg)
+# =============================
+# VALIDAZIONE
+# =============================
+error_messages = []
 
-salva = st.button("💾 Salva risultato", disabled=bool(error_msgs))
+# Validazione Set 1
+if set1_g1 == set1_g2 and (set1_g1 > 0 or set1_g2 > 0):
+    error_messages.append("Il punteggio del Set 1 non può essere pari.")
 
-if salva and not error_msgs:
-    try:
-        res = salva_risultato(torneo, giocatore1, giocatore2, set1, set2, set3, note)
-        st.success("Risultato salvato correttamente!")
-        vincitore, pv, sconfitto, ps = aggiorna_classifica(torneo, giocatore1, giocatore2, set1, set2, set3)
-        st.success(f"Classifica aggiornata: {vincitore} +{pv} punti, {sconfitto} +{ps} punti")
-        if hasattr(res, "data"):
-            st.json(res.data)
-    except Exception as e:
-        st.error(f"Errore nel salvataggio: {e}")
+# Validazione Set 2
+if aggiungi_set2 and set2_g1 == set2_g2 and (set2_g1 > 0 or set2_g2 > 0):
+    error_messages.append("Il punteggio del Set 2 non può essere pari.")
+
+# Validazione Set 3 (super tie-break)
+if aggiungi_set3 and (set3_g1 > 0 or set3_g2 > 0):
+    if set3_g1 == set3_g2:
+        error_messages.append("Il punteggio del 3° set non può essere pari.")
+    else:
+        max_punti = max(set3_g1, set3_g2)
+        diff = abs(set3_g1 - set3_g2)
+        if max_punti < 8:
+            error_messages.append("Il vincitore del 3° set deve avere almeno 8 punti.")
+        elif diff < 2:
+            error_messages.append("Il vincitore del 3° set deve avere almeno 2 punti di vantaggio.")
+        elif max_punti > 20:
+            error_messages.append("Il punteggio massimo consentito nel 3° set è 20.")
+
+# =============================
+# SALVATAGGIO
+# =============================
+if st.button("Salva risultato"):
+    if not giocatore1 or not giocatore2:
+        st.error("Seleziona entrambi i giocatori.")
+    elif error_messages:
+        for msg in error_messages:
+            st.error(msg)
+    else:
+        salva_risultato(giocatore1, giocatore2, set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2, note)
+
+
