@@ -1,108 +1,161 @@
 
-import streamlit as st
-from supabase import create_client
 import os
 from datetime import datetime
 
-# Configurazione Supabase
+import streamlit as st
+from supabase import create_client, Client
+
+# --------- Configurazione Supabase ---------
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("❌ Variabili d'ambiente mancanti: SUPABASE_URL o SUPABASE_KEY.")
+    st.stop()
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("🏆 Torneo Tennis - Girone Advanced")
 
-# Funzione per leggere giocatori dal DB
+# --------- Utility ---------
+def _safe_int(x):
+    """Ritorna int oppure None se x è None."""
+    return int(x) if x is not None else None
+
+@st.cache_data(ttl=30)
 def get_giocatori():
-    response = supabase.table("risultati_advanced").select("giocatore1,giocatore2").execute()
-    if response.data:
-        # Estrai tutti i nomi e rimuovi duplicati
-        players = set()
-        for row in response.data:
-            if row["giocatore1"]: players.add(row["giocatore1"])
-            if row["giocatore2"]: players.add(row["giocatore2"])
-        return sorted(players)
-    return []
+    """
+    Legge i giocatori dal DB scorrendo tutte le righe presenti.
+    Se la tabella è vuota, ritorna lista vuota.
+    """
+    resp = supabase.table("risultati_advanced").select("giocatore1,giocatore2").execute()
+    players = set()
+    if resp.data:
+        for row in resp.data:
+            g1 = row.get("giocatore1")
+            g2 = row.get("giocatore2")
+            if g1: players.add(g1.strip())
+            if g2: players.add(g2.strip())
+    return sorted(players)
 
-# Funzione per leggere risultati e calcolare classifica
+@st.cache_data(ttl=15)
+def get_risultati():
+    """Ritorna tutti i risultati ordinati per created_at decrescente."""
+    return supabase.table("risultati_advanced").select("*").order("created_at", desc=True).execute()
+
+@st.cache_data(ttl=15)
 def get_classifica():
-    response = supabase.table("risultati_advanced").select("*").execute()
+    """
+    Calcola la classifica aggregando i risultati dal DB.
+    Regole punti:
+      - 2-0: 3 punti al vincitore
+      - 2-1: 3 punti al vincitore, 1 punto allo sconfitto
+      - 0-2: 0 punti
+    """
+    resp = supabase.table("risultati_advanced").select("*").execute()
     punti = {}
-    if response.data:
-        for row in response.data:
-            g1, g2 = row["giocatore1"], row["giocatore2"]
-            s1g1, s1g2 = row["set1_g1"], row["set1_g2"]
-            s2g1, s2g2 = row["set2_g1"], row["set2_g2"]
-            s3g1, s3g2 = row["set3_g1"], row["set3_g2"]
+    if resp.data:
+        for row in resp.data:
+            g1 = row.get("giocatore1")
+            g2 = row.get("giocatore2")
+            s1g1 = row.get("set1_g1"); s1g2 = row.get("set1_g2")
+            s2g1 = row.get("set2_g1"); s2g2 = row.get("set2_g2")
+            s3g1 = row.get("set3_g1"); s3g2 = row.get("set3_g2")
 
-            # Conta set vinti
-            vinti_g1 = (s1g1 > s1g2) + (s2g1 > s2g2) + (s3g1 > s3g2 if s3g1 is not None and s3g2 is not None else 0)
-            vinti_g2 = (s1g2 > s1g1) + (s2g2 > s2g1) + (s3g2 > s3g1 if s3g1 is not None and s3g2 is not None else 0)
+            # Conta set vinti (considera il terzo set solo se entrambi non sono None)
+            vinti_g1 = int(s1g1 > s1g2) + int(s2g1 > s2g2) + (int(s3g1 > s3g2) if s3g1 is not None and s3g2 is not None else 0)
+            vinti_g2 = int(s1g2 > s1g1) + int(s2g2 > s2g1) + (int(s3g2 > s3g1) if s3g1 is not None and s3g2 is not None else 0)
 
             # Logica punti
             if vinti_g1 == 2:
-                if vinti_g2 == 0:
-                    punti[g1] = punti.get(g1, 0) + 3
-                else:
-                    punti[g1] = punti.get(g1, 0) + 3
+                punti[g1] = punti.get(g1, 0) + 3
+                if vinti_g2 > 0:
                     punti[g2] = punti.get(g2, 0) + 1
             elif vinti_g2 == 2:
-                if vinti_g1 == 0:
-                    punti[g2] = punti.get(g2, 0) + 3
-                else:
-                    punti[g2] = punti.get(g2, 0) + 3
+                punti[g2] = punti.get(g2, 0) + 3
+                if vinti_g1 > 0:
                     punti[g1] = punti.get(g1, 0) + 1
+
+    # Ordina per punti decrescente
     return sorted(punti.items(), key=lambda x: x[1], reverse=True)
 
-# UI: Form inserimento risultato
-st.subheader("Inserisci nuovo risultato")
+# --------- UI: Inserimento risultato ---------
+st.subheader("📝 Inserisci nuovo risultato")
 giocatori = get_giocatori()
-if giocatori:
+
+if not giocatori:
+    st.info("Non ci sono ancora giocatori registrati nella tabella. Inserisci almeno un match per popolare i menu.")
+else:
     with st.form("form_risultato"):
         g1 = st.selectbox("Giocatore 1", giocatori)
         g2 = st.selectbox("Giocatore 2", [p for p in giocatori if p != g1])
+
         col1, col2 = st.columns(2)
         with col1:
-            s1g1 = st.number_input("Set1 G1", 0, 7, 6)
-            s2g1 = st.number_input("Set2 G1", 0, 7, 4)
-            s3g1 = st.number_input("Set3 G1", 0, 20, 0)
+            s1g1 = st.number_input("Set1 G1", min_value=0, max_value=7, value=6)
+            s2g1 = st.number_input("Set2 G1", min_value=0, max_value=7, value=4)
+            s3g1 = st.number_input("Set3 G1", min_value=0, max_value=20, value=0)
         with col2:
-            s1g2 = st.number_input("Set1 G2", 0, 7, 4)
-            s2g2 = st.number_input("Set2 G2", 0, 7, 6)
-            s3g2 = st.number_input("Set3 G2", 0, 20, 0)
-        submit = st.form_submit_button("Salva risultato")
+            s1g2 = st.number_input("Set1 G2", min_value=0, max_value=7, value=4)
+            s2g2 = st.number_input("Set2 G2", min_value=0, max_value=7, value=6)
+            s3g2 = st.number_input("Set3 G2", min_value=0, max_value=20, value=0)
+
+        submit = st.form_submit_button("💾 Salva risultato")
 
     if submit:
+        # Se il terzo set è 0-0, salviamo come NULL per significare "non giocato"
+        set3_g1_val = None if (s3g1 == 0 and s3g2 == 0) else s3g1
+        set3_g2_val = None if (s3g1 == 0 and s3g2 == 0) else s3g2
+
         data = {
-            "giocatore1": g1,
-            "giocatore2": g2,
-            "set1_g1": s1g1, "set1_g2": s1g2,
-            "set2_g1": s2g1, "set2_g2": s2g2,
-            "set3_g1": s3g1 if s3g1 > 0 or s3g2 > 0 else None,
-            "set3_g2": s3g2 if s3g1 > 0 or s3g2 > 0 else None,
+            "giocatore1": g1.strip(),
+            "giocatore2": g2.strip(),
+            "set1_g1": int(s1g1), "set1_g2": int(s1g2),
+            "set2_g1": int(s2g1), "set2_g2": int(s2g2),
+            "set3_g1": _safe_int(set3_g1_val),
+            "set3_g2": _safe_int(set3_g2_val),
+            # Se la colonna ha DEFAULT now() sul DB, questa riga non è necessaria.
             "created_at": datetime.utcnow().isoformat()
         }
-        response = supabase.table("risultati_advanced").insert(data).execute()
-        if response.data:
-            st.success("✅ Risultato salvato!")
-        else:
-            st.error("Errore nel salvataggio.")
 
-# Mostra classifica
-st.subheader("Classifica")
+        try:
+            resp = supabase.table("risultati_advanced").insert(data).execute()
+            if resp.data:
+                st.success("✅ Risultato salvato su Supabase!")
+                # invalida la cache per ricalcolare classifica e storico
+                get_classifica.clear()
+                get_risultati.clear()
+                get_giocatori.clear()
+            else:
+                st.warning(f"Salvataggio non confermato. Risposta: {resp}")
+        except Exception as e:
+            st.error(f"Errore nel salvataggio: {e}")
+
+# --------- Classifica ---------
+st.subheader("📊 Classifica (persistente)")
 classifica = get_classifica()
 if classifica:
     for pos, (player, pts) in enumerate(classifica, start=1):
         st.write(f"{pos}. {player} — {pts} punti")
 else:
-    st.info("Nessun risultato disponibile.")
+    st.info("Nessun risultato disponibile per calcolare la classifica.")
 
-# Storico risultati
-st.subheader("Storico Risultati")
-response = supabase.table("risultati_advanced").select("*").order("created_at", desc=True).execute()
-if response.data:
-    for row in response.data:
-        st.write(f"{row['giocatore1']} vs {row['giocatore2']} → "
-                 f"{row['set1_g1']}-{row['set1_g2']}, {row['set2_g1']}-{row['set2_g2']}, "
-                 f"{row['set3_g1']}-{row['set3_g2'] if row['set3_g2'] else ''}")
+# --------- Storico ---------
+st.subheader("🕒 Storico Risultati")
+storico = get_risultati()
+if storico.data:
+    for row in storico.data:
+        s3_part = ""
+        s3g1 = row.get("set3_g1")
+        s3g2 = row.get("set3_g2")
+        if s3g1 is not None and s3g2 is not None:
+            s3_part = f", {s3g1}-{s3g2}"
+        st.write(
+            f"{row.get('giocatore1')} vs {row.get('giocatore2')} → "
+            f"{row.get('set1_g1')}-{row.get('set1_g2')}, "
+            f"{row.get('set2_g1')}-{row.get('set2_g2')}{s3_part}"
+        )
 else:
     st.info("Ancora nessun match registrato.")
+
+
