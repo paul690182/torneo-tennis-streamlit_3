@@ -159,3 +159,56 @@ else:
     st.info("Ancora nessun match registrato.")
 
 
+# Storico risultati
+st.subheader("🕒 Storico Risultati")
+storico = get_risultati()
+if storico.data:
+    for row in storico.data:
+        s3_part = ""
+        s3g1 = row.get("set3_g1")
+        s3g2 = row.get("set3_g2")
+        if s3g1 is not None and s3g2 is not None:
+            s3_part = f", {s3g1}-{s3g2}"
+        st.write(
+            f"{row.get('giocatore1')} vs {row.get('giocatore2')} → "
+            f"{row.get('set1_g1')}-{row.get('set1_g2')}, "
+            f"{row.get('set2_g1')}-{row.get('set2_g2')}{s3_part}"
+        )
+else:
+    st.info("Ancora nessun match registrato.")
+
+# ✅ Inserisci qui il pannello diagnostico
+import traceback
+
+st.divider()
+st.subheader("🔧 Diagnostica connessione Supabase")
+
+try:
+    # Test lettura
+    ping_read = supabase.table("risultati_advanced").select("id", count="exact").limit(1).execute()
+    cnt = ping_read.count if hasattr(ping_read, "count") else None
+
+    # Test insert + delete
+    ts = datetime.utcnow().isoformat()
+    probe = {
+        "giocatore1": "Probe",
+        "giocatore2": "Probe2",
+        "set1_g1": 1, "set1_g2": 0,
+        "set2_g1": 1, "set2_g2": 0,
+        "set3_g1": None, "set3_g2": None,
+        "created_at": ts
+    }
+    ins = supabase.table("risultati_advanced").insert(probe).execute()
+    ok_insert = bool(ins.data)
+
+    # Se inserito, rimuovi per pulizia
+    if ok_insert:
+        new_id = ins.data[0].get("id")
+        if new_id is not None:
+            supabase.table("risultati_advanced").delete().eq("id", new_id).execute()
+
+    st.success(f"✅ Supabase OK — Read count: {cnt}, Insert test: {ok_insert}")
+except Exception as e:
+    st.error(f"❌ Supabase non raggiungibile o policy bloccante: {e}")
+    st.code(traceback.format_exc())
+
