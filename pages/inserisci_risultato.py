@@ -1,149 +1,71 @@
 
 import streamlit as st
-import requests
-import os
-from datetime import datetime
+from validazione_torneo import TorneoTennis  # Assicurati che il file sia nella stessa cartella
 
-# =============================
-# CONFIGURAZIONE SUPABASE
-# =============================
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-HEADERS = {
-    'apikey': SUPABASE_KEY,
-    'Authorization': f'Bearer {SUPABASE_KEY}',
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-}
+st.title("🎾 Inserisci Risultato - Torneo Tennis (Girone Advanced)")
 
-# =============================
-# FUNZIONI DI SUPPORTO
-# =============================
-def log_message(msg, level="info"):
-    if level == "success":
-        st.markdown(f"✅ **{msg}**")
-    elif level == "warning":
-        st.markdown(f"⚠️ **{msg}**")
-    elif level == "error":
-        st.markdown(f"❌ **{msg}**")
+# Inizializza lo stato
+if "torneo" not in st.session_state:
+    st.session_state["torneo"] = TorneoTennis()
+
+torneo = st.session_state["torneo"]
+
+# Form per inserimento risultato
+with st.form("form_risultato"):
+    st.subheader("Dati del Match")
+    giocatore1 = st.text_input("Giocatore 1")
+    giocatore2 = st.text_input("Giocatore 2")
+
+    st.markdown("**Punteggi dei set**")
+    col1, col2 = st.columns(2)
+    with col1:
+        set1_g1 = st.number_input("Set1 G1", 0, 7, 6)
+        set2_g1 = st.number_input("Set2 G1", 0, 7, 4)
+        set3_g1 = st.number_input("Set3 G1", 0, 20, 10)
+    with col2:
+        set1_g2 = st.number_input("Set1 G2", 0, 7, 4)
+        set2_g2 = st.number_input("Set2 G2", 0, 7, 6)
+        set3_g2 = st.number_input("Set3 G2", 0, 20, 4)
+
+    submit = st.form_submit_button("Salva risultato")
+
+# Logica inserimento
+if submit:
+    if not giocatore1 or not giocatore2:
+        st.error("❌ Inserisci entrambi i nomi dei giocatori.")
     else:
-        st.markdown(f"ℹ️ {msg}")
+        try:
+            match = torneo.inserisci_risultato(
+                giocatore1.strip(), giocatore2.strip(),
+                (set1_g1, set1_g2),
+                (set2_g1, set2_g2),
+                (set3_g1, set3_g2)
+            )
+            st.success(f"✔ Risultato inserito. Vincitore: {match.vincitore}")
 
-def get_giocatori():
-    """Recupera i nomi dei giocatori dalla tabella classifica_advanced."""
-    url = f"{SUPABASE_URL}/rest/v1/classifica_advanced?select=giocatore"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        if response.status_code == 200:
-            data = response.json()
-            return sorted({row['giocatore'] for row in data if row.get('giocatore')})
-        else:
-            log_message(f"Errore nel recupero giocatori: {response.status_code} - {response.text}", "error")
-            return []
-    except Exception as e:
-        log_message(f"Eccezione durante il recupero giocatori: {e}", "error")
-        return []
+            # TODO: Inserimento su Supabase
+            # Usa supabase-py o API REST per salvare nel DB
+            # Esempio:
+            # from supabase import create_client
+            # supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+            # supabase.table('risultati_advanced').insert({...}).execute()
 
-def salva_risultato(giocatore1, giocatore2, set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2, note):
-    url = f"{SUPABASE_URL}/rest/v1/risultati_advanced"
-    payload = {
-        "giocatore1": giocatore1,
-        "giocatore2": giocatore2,
-        "set1_g1": set1_g1,
-        "set1_g2": set1_g2,
-        "set2_g1": set2_g1,
-        "set2_g2": set2_g2,
-        "set3_g1": set3_g1,
-        "set3_g2": set3_g2,
-        "note": note,
-        "created_at": datetime.utcnow().isoformat()
-    }
-    try:
-        response = requests.post(url, headers=HEADERS, json=payload)
-        if response.status_code in (200, 201):
-            log_message("Risultato salvato correttamente nel database.", "success")
-            # Aggiorna la pagina per ricaricare la lista giocatori
-            try:
-                st.rerun()
-            except Exception:
-                if hasattr(st, "experimental_rerun"):
-                    st.experimental_rerun()
-        else:
-            log_message(f"Errore nel salvataggio: {response.status_code} - {response.text}", "error")
-    except Exception as e:
-        log_message(f"Eccezione durante il salvataggio: {e}", "error")
+        except Exception as e:
+            st.error(f"❌ Errore: {e}")
 
-# =============================
-# INTERFACCIA STREAMLIT
-# =============================
-st.title("🏆 Inserisci Risultato")
-st.write("Compila i punteggi dei set e salva il risultato.")
-
-giocatori = get_giocatori()
-if not giocatori:
-    st.error("Impossibile caricare i giocatori dal database.")
+# Mostra classifica dinamica
+st.subheader("Classifica Dinamica")
+if torneo.classifica:
+    for pos, (player, pts) in enumerate(torneo.classifica_ordinata(), start=1):
+        st.write(f"{pos}. **{player}** — {pts} punti")
 else:
-    giocatore1 = st.selectbox("Giocatore A", giocatori, key="g1")
-    giocatore2 = st.selectbox("Giocatore B", [g for g in giocatori if g != giocatore1], key="g2")
+    st.info("Nessun risultato inserito.")
 
-    st.markdown("---")
-    st.subheader("Risultato (punteggi dei set)")
+# Storico risultati
+st.subheader("Storico Risultati")
+if torneo.risultati:
+    for m in torneo.risultati:
+        st.write(f"{m.giocatore1} vs {m.giocatore2} → {m.set1}, {m.set2}, {m.set3} | Vincitore: **{m.vincitore}**")
+else:
 
-    # --- Set 1 ---
-    set1_g1 = st.number_input("Set 1 - Giocatore A", min_value=0, max_value=7, step=1)
-    set1_g2 = st.number_input("Set 1 - Giocatore B", min_value=0, max_value=7, step=1)
-
-    # --- Set 2 ---
-    aggiungi_set2 = st.checkbox("Aggiungi Set 2")
-    if aggiungi_set2:
-        set2_g1 = st.number_input("Set 2 - Giocatore A", min_value=0, max_value=7, step=1)
-        set2_g2 = st.number_input("Set 2 - Giocatore B", min_value=0, max_value=7, step=1)
-    else:
-        set2_g1, set2_g2 = 0, 0
-
-    # --- Set 3 (super tie-break) ---
-    aggiungi_set3 = st.checkbox("Aggiungi Set 3")
-    if aggiungi_set3:
-        set3_g1 = st.number_input("Set 3 - Giocatore A", min_value=0, max_value=20, step=1)
-        set3_g2 = st.number_input("Set 3 - Giocatore B", min_value=0, max_value=20, step=1)
-    else:
-        set3_g1, set3_g2 = 0, 0
-
-    note = st.text_area("Note (opzionale)")
-
-    # =============================
-    # VALIDAZIONE
-    # =============================
-    error_messages = []
-
-    if set1_g1 == set1_g2 and (set1_g1 > 0 or set1_g2 > 0):
-        error_messages.append("Il punteggio del Set 1 non può essere pari.")
-
-    if aggiungi_set2 and set2_g1 == set2_g2 and (set2_g1 > 0 or set2_g2 > 0):
-        error_messages.append("Il punteggio del Set 2 non può essere pari.")
-
-    if aggiungi_set3 and (set3_g1 > 0 or set3_g2 > 0):
-        if set3_g1 == set3_g2:
-            error_messages.append("Il punteggio del 3° set non può essere pari.")
-        else:
-            max_punti = max(set3_g1, set3_g2)
-            diff = abs(set3_g1 - set3_g2)
-            if max_punti < 8:
-                error_messages.append("Il vincitore del 3° set deve avere almeno 8 punti.")
-            elif diff < 2:
-                error_messages.append("Il vincitore del 3° set deve avere almeno 2 punti di vantaggio.")
-            elif max_punti > 20:
-                error_messages.append("Il punteggio massimo consentito nel 3° set è 20.")
-
-    # =============================
-    # SALVATAGGIO
-    # =============================
-    if st.button("Salva risultato"):
-        if not giocatore1 or not giocatore2:
-            st.error("Seleziona entrambi i giocatori.")
-        elif error_messages:
-            for msg in error_messages:
-                st.error(msg)
-        else:
-            salva_risultato(giocatore1, giocatore2, set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2, note)
 
