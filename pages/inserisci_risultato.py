@@ -62,7 +62,12 @@ def salva_risultato(giocatore1, giocatore2, set1_g1, set1_g2, set2_g1, set2_g2, 
         response = requests.post(url, headers=HEADERS, json=payload)
         if response.status_code in (200, 201):
             log_message("Risultato salvato correttamente nel database.", "success")
-            st.session_state['refresh_giocatori'] = True
+            # Aggiorna la pagina per ricaricare la lista giocatori
+            try:
+                st.rerun()
+            except Exception:
+                if hasattr(st, "experimental_rerun"):
+                    st.experimental_rerun()
         else:
             log_message(f"Errore nel salvataggio: {response.status_code} - {response.text}", "error")
     except Exception as e:
@@ -74,11 +79,6 @@ def salva_risultato(giocatore1, giocatore2, set1_g1, set1_g2, set2_g1, set2_g2, 
 st.title("🏆 Inserisci Risultato")
 st.write("Compila i punteggi dei set e salva il risultato.")
 
-if 'refresh_giocatori' not in st.session_state:
-    st.session_state['refresh_giocatori'] = False
-
-# Carica giocatori dal DB
-st.subheader("Giocatori")
 giocatori = get_giocatori()
 if not giocatori:
     st.error("Impossibile caricare i giocatori dal database.")
@@ -146,5 +146,4 @@ else:
                 st.error(msg)
         else:
             salva_risultato(giocatore1, giocatore2, set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2, note)
-            st.experimental_rerun()  # Aggiorna la pagina per ricaricare la lista giocatori
 
