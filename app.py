@@ -4,19 +4,29 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from postgrest.exceptions import APIError
 
-# Carica variabili d'ambiente
+# ==== Config & Connessione ====
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Connessione a Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-TABLE_NAME = "partite_torneo"
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.stop()  # Blocca se mancano le variabili (su Render dovrebbero esserci già)
 
-# Funzione per interpretare il set (es. "6-4") e determinare il vincitore
-def parse_set(s):
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Mappa gironi -> tabelle
+TABLE_MAP = {
+    "Top": "partite_top",
+    "Advanced": "partite_advanced",
+}
+
+# ==== Utilità ====
+def parse_set(s: str):
+    """Ritorna 1 se vince giocatore1, 2 se vince giocatore2, None se non valido."""
     try:
+        s = (s or "").strip()
         if "-" not in s:
             return None
         a, b = s.split("-")
@@ -25,9 +35,8 @@ def parse_set(s):
             return 1
         elif b > a:
             return 2
-        else:
-            return None
-    except:
+        return None
+    except Exception:
         return None
 
 # Logica punteggi aggiornata:
@@ -49,11 +58,13 @@ def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
             cls[g] = {"Punti": 0, "Vittorie": 0, "Sconfitte": 0, "Partite giocate": 0}
 
     for _, r in df.iterrows():
-        g1, g2 = r["giocatore1"], r["giocatore2"]
-        p1, p2 = r["punteggio1"], r["punteggio2"]
+        g1, g2 = r.get("giocatore1", ""), r.get("giocatore2", "")
+        p1, p2 = r.get("punteggio1", 0), r.get("punteggio2", 0)
         s1, s2, s3 = r.get("set1", ""), r.get("set2", ""), r.get("set3", "")
-        ensure(g1)
-        ensure(g2)
+        if not g1 or not g2:
+            continue
+
+        ensure(g1); ensure(g2)
         cls[g1]["Partite giocate"] += 1
         cls[g2]["Partite giocate"] += 1
 
@@ -69,19 +80,20 @@ def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
             cls[g1]["Vittorie"] += 1
             cls[g2]["Sconfitte"] += 1
             if wins2 == 0:
-                cls[g1]["Punti"] += 3
+                cls[g1]["Punti"] += 3  # 2-0
             else:
-                cls[g1]["Punti"] += 2
+                cls[g1]["Punti"] += 2  # 2-1
                 cls[g2]["Punti"] += 1
         elif wins2 == 2 and wins1 <= 1:
             cls[g2]["Vittorie"] += 1
             cls[g1]["Sconfitte"] += 1
             if wins1 == 0:
-                cls[g2]["Punti"] += 3
+                cls[g2]["Punti"] += 3  # 0-2
             else:
-                cls[g2]["Punti"] += 2
+                cls[g2]["Punti"] += 2  # 1-2
                 cls[g1]["Punti"] += 1
         else:
+            # Fallback: punteggio globale (es. 7-5, 1-6, 6-4 non compilati come set)
             if p1 > p2:
                 cls[g1]["Vittorie"] += 1
                 cls[g2]["Sconfitte"] += 1
@@ -96,20 +108,32 @@ def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
         dfc = dfc.sort_values(by=["Punti", "Vittorie"], ascending=[False, False])
     return dfc
 
-# --- Streamlit App ---
-st.title("🏆 Torneo Tennis - Gestione Classifica")
+# ==== UI ====
+st.title("🏆 Torneo Tennis - Classifica & Storico")
 
-# Caricamento dati da Supabase
+# Selettore Girone
+girone = st.sidebar.selectbox("Girone", ["Top", "Advanced"])
+TABLE_NAME = TABLE_MAP.get(girone, "partite_top")
+
 @st.cache_data(ttl=60)
-def carica_partite():
-    res = supabase.table(TABLE_NAME).select("*").execute()
-    if res.data:
-        return pd.DataFrame(res.data)
-    return pd.DataFrame(columns=["giocatore1", "giocatore2", "punteggio1", "punteggio2", "set1", "set2", "set3"])
+def carica_partite(table_name: str) -> pd.DataFrame:
+    try:
+        res = supabase.table(table_name).select("*").execute()
+        data = res.data or []
+        df = pd.DataFrame(data)
+        # Assicura colonne anche se tabella vuota
+        for col in ["giocatore1", "giocatore2", "punteggio1", "punteggio2", "set1", "set2", "set3"]:
+            if col not in df.columns:
+                df[col] = []
+        return df
+    except APIError as e:
+        st.error(f"Errore Supabase ({getattr(e, 'code', 'PGRST')}): {getattr(e, 'message', e)}")
+        st.info("Controlla che la tabella esista e il nome sia corretto.")
+        return pd.DataFrame(columns=["giocatore1", "giocatore2", "punteggio1", "punteggio2", "set1", "set2", "set3"])
 
-matches_df = carica_partite()
+matches_df = carica_partite(TABLE_NAME)
 
-st.subheader("Inserisci risultato partita")
+st.subheader(f"Inserisci risultato partita – Girone {girone}")
 with st.form("nuova_partita"):
     g1 = st.text_input("Giocatore 1")
     g2 = st.text_input("Giocatore 2")
@@ -120,16 +144,25 @@ with st.form("nuova_partita"):
     set3 = st.text_input("Set 3 (opzionale)")
     submitted = st.form_submit_button("Aggiungi Partita")
     if submitted and g1 and g2:
-        new_row = {"giocatore1": g1, "giocatore2": g2, "punteggio1": p1, "punteggio2": p2, "set1": set1, "set2": set2, "set3": set3}
-        supabase.table(TABLE_NAME).insert(new_row).execute()
-        st.success("✅ Partita aggiunta! Aggiorna la pagina per vedere la classifica aggiornata.")
+        new_row = {
+            "giocatore1": g1, "giocatore2": g2,
+            "punteggio1": int(p1), "punteggio2": int(p2),
+            "set1": set1, "set2": set2, "set3": set3
+        }
+        try:
+            supabase.table(TABLE_NAME).insert(new_row).execute()
+            st.success("✅ Partita aggiunta!")
+            st.cache_data.clear()   # invalida la cache
+            st.rerun()              # ricarica la pagina per aggiornare classifica/storico
+        except APIError as e:
+            st.error(f"Errore inserimento Supabase ({getattr(e, 'code', 'PGRST')}): {getattr(e, 'message', e)}")
 
-st.subheader("Classifica")
+st.subheader(f"Classifica – Girone {girone}")
 classifica = calcola_punti_e_stats(matches_df)
-st.dataframe(classifica)
+st.dataframe(classifica, use_container_width=True)
 
-st.subheader("Storico Partite")
-st.dataframe(matches_df)
+st.subheader(f"Storico Partite – Girone {girone}")
+st.dataframe(matches_df, use_container_width=True)
 
 # Download CSV
 st.download_button("Scarica Storico", matches_df.to_csv(index=False), "storico_partite.csv")
