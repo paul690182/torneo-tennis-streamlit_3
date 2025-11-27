@@ -71,7 +71,7 @@ def compute_points(sets_p1: int, sets_p2: int):
 # --- Supabase client ---
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 supabase = None
 if SUPABASE_URL and SUPABASE_ANON_KEY:
