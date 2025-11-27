@@ -1,3 +1,4 @@
+
 import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
@@ -11,10 +12,18 @@ SUPABASE_KEY = "YOUR_ANON_KEY"  # Inserisci la tua chiave anon
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # =============================
-# LISTE GIOCATORI PER GIRONE
+# LISTE GIOCATORI COMPLETE
 # =============================
-GIOCATORI_TOP = ["Simone", "Marco", "Riccardo", "Giuseppe"]
-GIOCATORI_ADVANCED = ["Luca", "Andrea", "Francesco", "Davide"]
+GIOCATORI_TOP = [
+    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni",
+    "Andrea P.", "Giuseppe", "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"
+]
+
+GIOCATORI_ADVANCED = [
+    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna",
+    "Paolo Mattioli", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino",
+    "Gianni", "Leonardo", "Francesco M."
+]
 
 # =============================
 # FUNZIONE VALIDAZIONE PUNTEGGI
@@ -98,47 +107,3 @@ with st.form("inserisci_match", clear_on_submit=True):
     submitted = st.form_submit_button("Salva Risultato")
 
     if submitted:
-        if not all(valida_punteggio(p) for p in [set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2]):
-            st.error("I punteggi devono essere numeri interi tra 0 e 20 o vuoti.")
-        else:
-            def conv(val):
-                return int(val) if val != "" else None
-
-            record = {
-                "giocatore1": giocatore1,
-                "giocatore2": giocatore2,
-                "set1_g1": conv(set1_g1),
-                "set1_g2": conv(set1_g2),
-                "set2_g1": conv(set2_g1),
-                "set2_g2": conv(set2_g2),
-                "set3_g1": conv(set3_g1),
-                "set3_g2": conv(set3_g2)
-            }
-
-            try:
-                supabase.table(nome_tabella).insert(record).execute()
-                st.success(f"Risultato salvato nel girone {girone}!")
-            except Exception as e:
-                st.error(f"Errore durante l'inserimento: {e}")
-
-# =============================
-# VISUALIZZAZIONE RISULTATI
-# =============================
-st.subheader(f"📋 Risultati Girone {girone}")
-try:
-    data = supabase.table(nome_tabella).select("*").order("created_at", desc=True).execute()
-    if data.data:
-        for match in data.data:
-            st.markdown(f"**{match['giocatore1']} vs {match['giocatore2']}**")
-            st.write(f"Set 1: {match['set1_g1']}-{match['set1_g2']}")
-            st.write(f"Set 2: {match['set2_g1']}-{match['set2_g2']}")
-            st.write(f"Set 3: {match['set3_g1'] if match['set3_g1'] else '-'}-{match['set3_g2'] if match['set3_g2'] else '-'}")
-            st.markdown("---")
-
-        st.subheader("🏆 Classifica")
-        df_classifica = calcola_classifica(data.data)
-        st.table(df_classifica)
-    else:
-        st.info("Nessun risultato disponibile per questo girone.")
-except Exception as e:
-    st.error(f"Errore nel recupero dati: {e}")
