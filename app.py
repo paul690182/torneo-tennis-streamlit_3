@@ -22,6 +22,18 @@ TABLE_MAP = {
     "Advanced": "partite_advanced",
 }
 
+# Liste giocatori predefinite
+GIOCATORI_TOP = [
+    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni",
+    "Andrea P.", "Giuseppe", "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"
+]
+
+GIOCATORI_ADVANCED = [
+    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna",
+    "Paolo Mattioli", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino",
+    "Gianni", "Leonardo", "Francesco M."
+]
+
 # ==== Utilità ====
 def parse_set(s: str):
     """Ritorna 1 se vince giocatore1, 2 se vince giocatore2, None se non valido."""
@@ -133,10 +145,13 @@ def carica_partite(table_name: str) -> pd.DataFrame:
 
 matches_df = carica_partite(TABLE_NAME)
 
+# Dropdown giocatori in base al girone
+lista_giocatori = GIOCATORI_TOP if girone == "Top" else GIOCATORI_ADVANCED
+
 st.subheader(f"Inserisci risultato partita – Girone {girone}")
 with st.form("nuova_partita"):
-    g1 = st.text_input("Giocatore 1")
-    g2 = st.text_input("Giocatore 2")
+    g1 = st.selectbox("Giocatore 1", lista_giocatori)
+    g2 = st.selectbox("Giocatore 2", [g for g in lista_giocatori if g != g1])
     p1 = st.number_input("Punteggio Giocatore 1", min_value=0, step=1)
     p2 = st.number_input("Punteggio Giocatore 2", min_value=0, step=1)
     set1 = st.text_input("Set 1 (es. 6-4)")
