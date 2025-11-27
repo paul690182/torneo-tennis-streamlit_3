@@ -12,21 +12,15 @@ st.set_page_config(page_title="Torneo Tennis", layout="wide")
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {display: none !important;}
-        /* opzionale: allarga il contenuto */
         .block-container {padding-top: 1rem;}
     </style>
 """, unsafe_allow_html=True)
 
 # =============================
-# CONFIGURAZIONE SUPABASE
+# CONFIGURAZIONE SUPABASE (da supabase_config.py)
 # =============================
-SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"  # <-- lascia invariato se già usi le env vars
-SUPABASE_KEY = "YOUR_ANON_KEY"                    # <-- idem; se usi env, puoi leggere da st.secrets
-
-# Se usi st.secrets (consigliato), scommenta queste due righe:
-# SUPABASE_URL = st.secrets["SUPABASE_URL"]
-# SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-
+# NON toccare le chiavi: le importiamo dal tuo file dedicato
+from supabase_config import SUPABASE_URL, SUPABASE_KEY
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # =============================
@@ -57,14 +51,16 @@ def valida_punteggio(val):
 
 def calcola_classifica(matches):
     """
-    Punteggio: 3 al vincitore del match (basato su set vinti);
+    Punteggio:
+      - 3 al vincitore
+      - 1 allo sconfitto se perde 2–1
+      - 0 allo sconfitto se perde 2–0
     Conteggio: Vinte/Perse sul match (non per set).
     """
     stats = {}
     for m in matches:
         g1 = m.get("giocatore1")
         g2 = m.get("giocatore2")
-
         if not g1 or not g2:
             continue
 
@@ -73,7 +69,7 @@ def calcola_classifica(matches):
         if g2 not in stats:
             stats[g2] = {"Vinte": 0, "Perse": 0, "Punti": 0}
 
-        # Conta set
+        # Conta i set vinti da ciascuno
         set_g1 = 0
         set_g2 = 0
         for s1, s2 in [
@@ -86,19 +82,24 @@ def calcola_classifica(matches):
                     if int(s1) > int(s2): set_g1 += 1
                     elif int(s2) > int(s1): set_g2 += 1
                 except Exception:
-                    # Se per caso arrivano stringhe non convertibili, ignoro quel set
+                    # Se qualche valore non è convertibile, ignoro quel set
                     pass
 
-        # Determina vincitore match
+        # Determina vincitore match e assegna punti
         if set_g1 > set_g2:
             stats[g1]["Vinte"] += 1
             stats[g2]["Perse"] += 1
             stats[g1]["Punti"] += 3
+            # Sconfitto con 2–1 prende 1 punto
+            if set_g2 == 1 and set_g1 == 2:
+                stats[g2]["Punti"] += 1
         elif set_g2 > set_g1:
             stats[g2]["Vinte"] += 1
             stats[g1]["Perse"] += 1
             stats[g2]["Punti"] += 3
-        # Se pari (es. dati incompleti) non assegno punti
+            if set_g1 == 1 and set_g2 == 2:
+                stats[g1]["Punti"] += 1
+        # Se pari (dati incompleti), non assegno punti
 
     df = pd.DataFrame.from_dict(stats, orient="index")
     if df.empty:
@@ -129,7 +130,6 @@ with st.form("inserisci_match", clear_on_submit=True):
     with col_nomi[0]:
         giocatore1 = st.selectbox("Giocatore 1", LISTA_GIOCATORI, key="g1")
     with col_nomi[1]:
-        # escludo g1 dalla lista di g2
         lista_g2 = [g for g in LISTA_GIOCATORI if g != giocatore1]
         giocatore2 = st.selectbox("Giocatore 2", lista_g2, key="g2")
 
@@ -156,18 +156,12 @@ with st.form("inserisci_match", clear_on_submit=True):
 
     submitted = st.form_submit_button("Salva Risultato")
 
-    # *** BLOCCO INDENTATO: evita l'IndentationError ***
     if submitted:
         # Validazione punteggi
-        if not all(
-            valida_punteggio(p)
-            for p in [set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2]
-        ):
+        if not all(valida_punteggio(p) for p in [set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2]):
             st.error("I punteggi devono essere numeri interi tra 0 e 20 o vuoti.")
         else:
-            def conv(val):
-                return int(val) if val != "" else None
-
+            def conv(val): return int(val) if val != "" else None
             record = {
                 "giocatore1": giocatore1,
                 "giocatore2": giocatore2,
@@ -178,7 +172,6 @@ with st.form("inserisci_match", clear_on_submit=True):
                 "set3_g1": conv(set3_g1),
                 "set3_g2": conv(set3_g2),
             }
-
             try:
                 supabase.table(NOME_TABELLA).insert(record).execute()
                 st.success(f"Risultato salvato nel girone {girone}!")
@@ -197,7 +190,11 @@ try:
             st.markdown(f"**{m.get('giocatore1','?')} vs {m.get('giocatore2','?')}**")
             s1 = f"{m.get('set1_g1','-')}-{m.get('set1_g2','-')}"
             s2 = f"{m.get('set2_g1','-')}-{m.get('set2_g2','-')}"
-            s3 = f"{m.get('set3_g1','-')}-{m.get('set3_g2','-')}" if (m.get('set3_g1') is not None and m.get('set3_g2') is not None) else "- -"
+            s3 = (
+                f"{m.get('set3_g1','-')}-{m.get('set3_g2','-')}"
+                if (m.get('set3_g1') is not None and m.get('set3_g2') is not None)
+                else "- -"
+            )
             st.write(f"Set 1: {s1}")
             st.write(f"Set 2: {s2}")
             st.write(f"Set 3: {s3}")
