@@ -1,196 +1,154 @@
-
-import os
-import traceback
 import streamlit as st
-import pandas as pd
 from supabase import create_client, Client
+import pandas as pd
 
-# ===== Configurazione =====
-APP_VERSION = "v2025-11-27 (fix rerun + cast int)"
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# =============================
+# CONFIGURAZIONE SUPABASE
+# =============================
+SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"  # Inserisci il tuo URL Supabase
+SUPABASE_KEY = "YOUR_ANON_KEY"  # Inserisci la tua chiave anon
 
-supabase: Client = None
-if SUPABASE_URL and SUPABASE_KEY:
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# =============================
+# FUNZIONE VALIDAZIONE PUNTEGGI
+# =============================
+def valida_punteggio(val):
+    if val == "" or val is None:
+        return True
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception:
-        supabase = None
+        val = int(val)
+        return 0 <= val <= 20  # Range aggiornato
+    except ValueError:
+        return False
 
-# ===== Nascondi Sidebar =====
-st.set_page_config(page_title="Torneo Tennis", layout="wide")
-HIDE_SIDEBAR = """
-<style>
-[data-testid="stSidebar"] {display: none !important;}
-[data-testid="stSidebarNav"] {display: none !important;}
-section[data-testid="stSidebar"] {display: none !important;}
-</style>
-"""
-st.markdown(HIDE_SIDEBAR, unsafe_allow_html=True)
+# =============================
+# FUNZIONE CALCOLO CLASSIFICA
+# =============================
+def calcola_classifica(matches):
+    # Dizionario per accumulare statistiche
+    stats = {}
+    for match in matches:
+        g1 = match['giocatore1']
+        g2 = match['giocatore2']
 
-# ===== Titolo =====
-st.title("🎾 Torneo Tennis - Gestione Gironi")
-st.caption(f"Build: {APP_VERSION}")
+        # Inizializza giocatori
+        if g1 not in stats:
+            stats[g1] = {'Vinte': 0, 'Perse': 0, 'Punti': 0}
+        if g2 not in stats:
+            stats[g2] = {'Vinte': 0, 'Perse': 0, 'Punti': 0}
 
-# ===== Liste giocatori =====
-TOP_PLAYERS = [
-    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso",
-    "Giovanni", "Andrea P.", "Giuseppe", "Salvatore", "Leonardino",
-    "Federico", "Luca", "Adriano"
-]
-ADVANCED_PLAYERS = [
-    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.",
-    "Susanna", "Paolo Mattioli", "Paolo Rosi", "Michele", "Daniele M.",
-    "Stefano D. R.", "Pino", "Gianni", "Leonardo", "Francesco M."
-]
+        # Conta set vinti
+        set_g1 = 0
+        set_g2 = 0
+        for s1, s2 in [(match['set1_g1'], match['set1_g2']), (match['set2_g1'], match['set2_g2']), (match['set3_g1'], match['set3_g2'])]:
+            if s1 is not None and s2 is not None:
+                if s1 > s2:
+                    set_g1 += 1
+                elif s2 > s1:
+                    set_g2 += 1
 
-# ===== Funzioni =====
-def compute_match_points(sets_p1, sets_p2):
-    if sets_p1 == 2 and sets_p2 == 0:
-        return 3, 0
-    if sets_p1 == 0 and sets_p2 == 2:
-        return 0, 3
-    if sets_p1 == 2 and sets_p2 == 1:
-        return 2, 1
-    if sets_p1 == 1 and sets_p2 == 2:
-        return 1, 2
-    return 0, 0
+        # Determina vincitore
+        if set_g1 > set_g2:
+            stats[g1]['Vinte'] += 1
+            stats[g2]['Perse'] += 1
+            stats[g1]['Punti'] += 3  # 3 punti per vittoria
+        elif set_g2 > set_g1:
+            stats[g2]['Vinte'] += 1
+            stats[g1]['Perse'] += 1
+            stats[g2]['Punti'] += 3
 
-def sets_won_from_scores(scores):
-    sets_p1 = 0
-    sets_p2 = 0
-    for p1, p2 in scores:
-        if p1 is not None and p2 is not None:
-            if p1 > p2:
-                sets_p1 += 1
-            elif p2 > p1:
-                sets_p2 += 1
-    return sets_p1, sets_p2
+    # Converti in DataFrame
+    df = pd.DataFrame.from_dict(stats, orient='index')
+    df = df.sort_values(by=['Punti', 'Vinte'], ascending=[False, False])
+    return df.reset_index().rename(columns={'index': 'Giocatore'})
 
-def inserisci_match(table_name, g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2):
-    try:
-        if g1 == g2:
-            st.error("I due giocatori devono essere diversi.")
-            return
-        for v in [s1g1, s1g2, s2g1, s2g2]:
-            if v < 0 or v > 7:
-                st.error("Set 1 e 2 devono essere tra 0 e 7.")
-                return
-        if s3g1 and (s3g1 < 0 or s3g1 > 20):
-            st.error("Set 3 deve essere tra 0 e 20.")
-            return
-        if s3g2 and (s3g2 < 0 or s3g2 > 20):
-            st.error("Set 3 deve essere tra 0 e 20.")
-            return
+# =============================
+# STREAMLIT UI
+# =============================
+st.title("F3BE Torneo Tennis - Gestione Risultati e Classifica")
 
-        sets_p1, sets_p2 = sets_won_from_scores([(s1g1, s1g2), (s2g1, s2g2), (s3g1, s3g2)])
-        points_p1, points_p2 = compute_match_points(sets_p1, sets_p2)
+# Selettore girone
+st.subheader("Seleziona Girone")
+girone = st.selectbox("Girone", ["Top", "Advanced"])
 
-        record = {
-            "giocatore1": g1,
-            "giocatore2": g2,
-            "set1_g1": s1g1, "set1_g2": s1g2,
-            "set2_g1": s2g1, "set2_g2": s2g2,
-            "set3_g1": s3g1 if s3g1 else None,
-            "set3_g2": s3g2 if s3g2 else None,
-            "sets_g1": sets_p1, "sets_g2": sets_p2,
-            "points_g1": points_p1, "points_g2": points_p2
-        }
+# Nome tabella in base al girone
+nome_tabella = "risultati_top" if girone == "Top" else "risultati_advanced"
 
-        if supabase is None:
-            st.error("Supabase non configurato.")
-            return
+# =============================
+# FORM INSERIMENTO RISULTATI
+# =============================
+st.subheader("Inserisci Match")
+with st.form("inserisci_match"):
+    giocatore1 = st.text_input("Giocatore 1")
+    giocatore2 = st.text_input("Giocatore 2")
 
-        supabase.table(table_name).insert(record).execute()
-        st.success(f"Match inserito in {table_name}! Punti: {g1}={points_p1}, {g2}={points_p2}")
-        st.rerun()  # Fix per Streamlit >=1.31
-    except Exception as e:
-        st.error(f"Errore: {e}")
-        st.code(traceback.format_exc())
+    st.write("**Set 1**")
+    set1_g1 = st.text_input("Punteggio Giocatore 1 (Set 1)")
+    set1_g2 = st.text_input("Punteggio Giocatore 2 (Set 1)")
 
-def calcola_classifica(matches, players):
-    punti = {p: 0 for p in players}
-    sets_vinti = {p: 0 for p in players}
-    sets_persi = {p: 0 for p in players}
-    games_vinti = {p: 0 for p in players}
+    st.write("**Set 2**")
+    set2_g1 = st.text_input("Punteggio Giocatore 1 (Set 2)")
+    set2_g2 = st.text_input("Punteggio Giocatore 2 (Set 2)")
 
-    for m in matches:
-        g1, g2 = m['giocatore1'], m['giocatore2']
-        punti[g1] += int(m.get('points_g1') or 0)
-        punti[g2] += int(m.get('points_g2') or 0)
-        sets_vinti[g1] += int(m.get('sets_g1') or 0)
-        sets_vinti[g2] += int(m.get('sets_g2') or 0)
-        sets_persi[g1] += int(m.get('sets_g2') or 0)
-        sets_persi[g2] += int(m.get('sets_g1') or 0)
-        games_vinti[g1] += sum([int(m.get('set1_g1') or 0), int(m.get('set2_g1') or 0), int(m.get('set3_g1') or 0)])
-        games_vinti[g2] += sum([int(m.get('set1_g2') or 0), int(m.get('set2_g2') or 0), int(m.get('set3_g2') or 0)])
+    st.write("**Set 3 (opzionale)**")
+    set3_g1 = st.text_input("Punteggio Giocatore 1 (Set 3)")
+    set3_g2 = st.text_input("Punteggio Giocatore 2 (Set 3)")
 
-    df = pd.DataFrame({
-        "Giocatore": players,
-        "Punti": [punti[p] for p in players],
-        "Set vinti": [sets_vinti[p] for p in players],
-        "Set persi": [sets_persi[p] for p in players],
-        "Diff set": [sets_vinti[p] - sets_persi[p] for p in players],
-        "Game vinti": [games_vinti[p] for p in players]
-    })
-    df.sort_values(by=["Punti", "Diff set", "Game vinti"], ascending=[False, False, False], inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    df.insert(0, "Posizione", df.index + 1)
-    return df
+    submitted = st.form_submit_button("Salva Risultato")
 
-# ===== Layout Tabs =====
-TAB_ADV, TAB_TOP, TAB_DIAG = st.tabs(["💎 Girone Advanced", "🏅 Girone Top", "🔧 Diagnostica"])
+    if submitted:
+        # Validazione campi
+        if not giocatore1 or not giocatore2:
+            st.error("Inserisci entrambi i nomi dei giocatori.")
+        elif not all(valida_punteggio(p) for p in [set1_g1, set1_g2, set2_g1, set2_g2, set3_g1, set3_g2]):
+            st.error("I punteggi devono essere numeri interi tra 0 e 20 o vuoti.")
+        else:
+            # Conversione punteggi
+            def conv(val):
+                return int(val) if val != "" else None
 
-with TAB_ADV:
-    st.subheader("Inserisci risultato - Advanced")
-    g1 = st.selectbox("Giocatore 1", ADVANCED_PLAYERS, key="adv_g1")
-    g2 = st.selectbox("Giocatore 2", [p for p in ADVANCED_PLAYERS if p != g1], key="adv_g2")
-    s1g1 = st.number_input("Set1 G1", 0, 7, 6, key="adv_s1g1")
-    s2g1 = st.number_input("Set2 G1", 0, 7, 6, key="adv_s2g1")
-    s3g1 = st.number_input("Set3 G1 (TB)", 0, 20, 0, key="adv_s3g1")
-    s1g2 = st.number_input("Set1 G2", 0, 7, 4, key="adv_s1g2")
-    s2g2 = st.number_input("Set2 G2", 0, 7, 4, key="adv_s2g2")
-    s3g2 = st.number_input("Set3 G2 (TB)", 0, 20, 0, key="adv_s3g2")
-    if st.button("Salva risultato Advanced", type="primary", key="btn_adv"):
-        inserisci_match("risultati_advanced", g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2)
+            record = {
+                "giocatore1": giocatore1,
+                "giocatore2": giocatore2,
+                "set1_g1": conv(set1_g1),
+                "set1_g2": conv(set1_g2),
+                "set2_g1": conv(set2_g1),
+                "set2_g2": conv(set2_g2),
+                "set3_g1": conv(set3_g1),
+                "set3_g2": conv(set3_g2)
+            }
 
-    st.markdown("---")
-    st.subheader("Classifica Advanced")
-    if supabase:
-        res = supabase.table("risultati_advanced").select("*").execute()
-        st.dataframe(calcola_classifica(res.data or [], ADVANCED_PLAYERS), use_container_width=True)
+            try:
+                response = supabase.table(nome_tabella).insert(record).execute()
+                st.success(f"Risultato salvato nel girone {girone}!")
+            except Exception as e:
+                st.error(f"Errore durante l'inserimento: {e}")
 
-with TAB_TOP:
-    st.subheader("Inserisci risultato - Top")
-    tg1 = st.selectbox("Giocatore 1", TOP_PLAYERS, key="top_g1")
-    tg2 = st.selectbox("Giocatore 2", [p for p in TOP_PLAYERS if p != tg1], key="top_g2")
-    ts1g1 = st.number_input("Set1 G1", 0, 7, 6, key="top_s1g1")
-    ts2g1 = st.number_input("Set2 G1", 0, 7, 6, key="top_s2g1")
-    ts3g1 = st.number_input("Set3 G1 (TB)", 0, 20, 0, key="top_s3g1")
-    ts1g2 = st.number_input("Set1 G2", 0, 7, 4, key="top_s1g2")
-    ts2g2 = st.number_input("Set2 G2", 0, 7, 4, key="top_s2g2")
-    ts3g2 = st.number_input("Set3 G2 (TB)", 0, 20, 0, key="top_s3g2")
-    if st.button("Salva risultato Top", type="primary", key="btn_top"):
-        inserisci_match("risultati_top", tg1, tg2, ts1g1, ts1g2, ts2g1, ts2g2, ts3g1, ts3g2)
+# =============================
+# VISUALIZZAZIONE RISULTATI
+# =============================
+st.subheader(f"F4CB Risultati Girone {girone}")
+try:
+    data = supabase.table(nome_tabella).select("*").order("created_at", desc=True).execute()
+    if data.data:
+        for match in data.data:
+            st.markdown(f"**{match['giocatore1']} vs {match['giocatore2']}**")
+            st.write(f"Set 1: {match['set1_g1']}-{match['set1_g2']}")
+            st.write(f"Set 2: {match['set2_g1']}-{match['set2_g2']}")
+            st.write(f"Set 3: {match['set3_g1'] if match['set3_g1'] else '-'}-{match['set3_g2'] if match['set3_g2'] else '-'}")
+            st.markdown("---")
 
-    st.markdown("---")
-    st.subheader("Classifica Top")
-    if supabase:
-        res_top = supabase.table("risultati_top").select("*").execute()
-        st.dataframe(calcola_classifica(res_top.data or [], TOP_PLAYERS), use_container_width=True)
+        # =============================
+        # CLASSIFICA AUTOMATICA
+        # =============================
+        st.subheader("
 
-with TAB_DIAG:
-    st.subheader("Diagnostica Supabase")
-    st.write("Advanced:", "OK" if supabase else "❌")
-    st.write("Top:", "OK" if supabase else "❌")
-
-# ===== NOTE PER DB =====
-# ALTER TABLE risultati_advanced ADD COLUMN points_g1 int;
-# ALTER TABLE risultati_advanced ADD COLUMN points_g2 int;
-# ALTER TABLE risultati_advanced ADD COLUMN sets_g1 int;
-# ALTER TABLE risultati_advanced ADD COLUMN sets_g2 int;
-# ALTER TABLE risultati_top ADD COLUMN points_g1 int;
-# ALTER TABLE risultati_top ADD COLUMN points_g2 int;
-# ALTER TABLE risultati_top ADD COLUMN sets_g1 int;
-# ALTER TABLE risultati_top ADD COLUMN sets_g2 int;
+🏆 Classifica")
+        df_classifica = calcola_classifica(data.data)
+        st.table(df_classifica)
+    else:
+        st.info("Nessun risultato disponibile per questo girone.")
+except Exception as e:
+    st.error(f"Errore nel recupero dati: {e}")
 
