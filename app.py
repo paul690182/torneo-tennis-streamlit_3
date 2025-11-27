@@ -2,7 +2,7 @@
 import os
 import streamlit as st
 import pandas as pd
-from supabase_config import supabase  # usa le env vars da Render/.env
+from supabase_config import supabase  # usa env vars da Render/.env
 
 # -------------------------------
 # Config pagina e stile
@@ -60,7 +60,7 @@ set2 = st.text_input("Set 2 (es. 3-6)")
 set3 = st.text_input("Set 3 (es. 6-4)")
 
 # -------------------------------
-# Utilities
+# Funzioni di supporto
 # -------------------------------
 def parse_set(s: str):
     if not s or "-" not in s:
@@ -75,16 +75,30 @@ def parse_set(s: str):
         return None
 
 def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
+    # Sanifica i campi prima di usarli
+    df = rows_df.copy()
+
+    for col in ["punteggio1", "punteggio2"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+        else:
+            df[col] = 0
+
+    for col in ["set1", "set2", "set3"]:
+        if col in df.columns:
+            df[col] = df[col].fillna("").astype(str)
+        else:
+            df[col] = ""
+
     cls = {}
     def ensure(g):
         if g not in cls:
             cls[g] = {"Punti": 0, "Vittorie": 0, "Sconfitte": 0, "Partite giocate": 0}
 
-    for _, r in rows_df.iterrows():
+    for _, r in df.iterrows():
         g1, g2 = r.get("giocatore1"), r.get("giocatore2")
-        p1 = int(r.get("punteggio1", 0) or 0)
-        p2 = int(r.get("punteggio2", 0) or 0)
-        s1, s2, s3 = r.get("set1", ""), r.get("set2", ""), r.get("set3", "")
+        p1, p2 = r["punteggio1"], r["punteggio2"]
+        s1, s2, s3 = r["set1"], r["set2"], r["set3"]
 
         if not g1 or not g2:
             continue
@@ -153,7 +167,16 @@ st.subheader("📊 Storico Risultati")
 try:
     res = supabase.table(tabella).select("*").order("created_at", desc=True).execute()
     df = pd.DataFrame(res.data or [])
+
     if not df.empty:
+        # Sanifica subito per evitare NaN
+        for col in ["punteggio1", "punteggio2"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+        for col in ["set1", "set2", "set3"]:
+            if col in df.columns:
+                df[col] = df[col].fillna("").astype(str)
+
         st.dataframe(df, use_container_width=True)
         st.subheader("🏅 Classifica")
         df_classifica = calcola_punti_e_stats(df)
