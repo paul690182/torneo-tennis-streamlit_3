@@ -1,27 +1,40 @@
 
+import os
 import streamlit as st
 import pandas as pd
-from supabase_config import supabase
+from supabase_config import supabase  # usa le env vars da Render/.env
 
+# -------------------------------
+# Config pagina e stile
+# -------------------------------
 st.set_page_config(page_title="Torneo Tennis", layout="wide")
 
 # Nascondi sidebar
-hide_sidebar_style = """
+st.markdown("""
     <style>
     [data-testid="stSidebar"] {display: none;}
     </style>
-"""
-st.markdown(hide_sidebar_style, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 st.title("🏆 Torneo Tennis - Inserisci Risultato")
 
-# Gironi
+# -------------------------------
+# Dati giocatori (dal tuo elenco aggiornato)
+# -------------------------------
+giocatori_top = [
+    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo",
+    "Cris Cosso", "Giovanni", "Andrea P.", "Giuseppe", "Salvatore",
+    "Leonardino", "Federico", "Luca", "Adriano"
+]
+
+giocatori_advanced = [
+    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.",
+    "Roberto A.", "Susanna", "Paolo Mattioli", "Paolo Rosi", "Michele",
+    "Daniele M.", "Stefano D. R.", "Pino", "Gianni", "Leonardo", "Francesco M."
+]
+
 gironi = ["Top", "Advanced"]
 scelta_girone = st.selectbox("Seleziona il girone", gironi)
-
-# Dropdown giocatori
-giocatori_top = ["Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni", "Andrea P.", "Giuseppe", "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"]
-giocatori_advanced = ["Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna", "Paolo Mattioli", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino", "Gianni", "Leonardo", "Francesco M."]
 
 if scelta_girone == "Top":
     giocatori = giocatori_top
@@ -30,78 +43,179 @@ else:
     giocatori = giocatori_advanced
     tabella = "risultati_advanced"
 
+# -------------------------------
+# Input risultato
+# -------------------------------
 col1, col2 = st.columns(2)
 with col1:
-    giocatore1 = st.selectbox("Giocatore 1", giocatori)
+    giocatore1 = st.selectbox("Giocatore 1", giocatori, key="g1")
 with col2:
-    giocatore2 = st.selectbox("Giocatore 2", giocatori)
+    # Escludi automaticamente il giocatore1
+    giocatore2 = st.selectbox(
+        "Giocatore 2", [g for g in giocatori if g != giocatore1], key="g2"
+    )
 
-punteggio1 = st.number_input("Punteggio Giocatore 1", min_value=0, max_value=20, step=1)
-punteggio2 = st.number_input("Punteggio Giocatore 2", min_value=0, max_value=20, step=1)
+punteggio1 = st.number_input("Punteggio Giocatore 1 (0–20)", min_value=0, max_value=20, step=1)
+punteggio2 = st.number_input("Punteggio Giocatore 2 (0–20)", min_value=0, max_value=20, step=1)
 
 set1 = st.text_input("Set 1 (es. 6-4)")
 set2 = st.text_input("Set 2 (es. 3-6)")
 set3 = st.text_input("Set 3 (es. 6-4)")
 
+# -------------------------------
+# Utilities
+# -------------------------------
+def parse_set(s: str):
+    """
+    Ritorna:
+      1 se vince il primo,
+      2 se vince il secondo,
+      None se non valido o non compilato.
+    """
+    if not s or "-" not in s:
+        return None
+    try:
+        a, b = s.replace(" ", "").split("-", 1)
+        a, b = int(a), int(b)
+        if a == b:
+            return None
+        return 1 if a > b else 2
+    except Exception:
+        return None
+
+def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Costruisce la classifica con:
+      - Punti
+      - Vittorie
+      - Sconfitte
+      - Partite giocate
+
+    Regole punti:
+      - 2–0 → 3 al vincitore, 0 allo sconfitto
+      - 2–1 → 3 al vincitore, 1 allo sconfitto
+    Fallback: se set non determinano chiaramente il 2–x, usa punteggio1/punteggio2 e assegna 3 punti al vincitore.
+    """
+    cls = {}
+    def ensure(g):
+        if g not in cls:
+            cls[g] = {"Punti": 0, "Vittorie": 0, "Sconfitte": 0, "Partite giocate": 0}
+
+    for _, r in rows_df.iterrows():
+        g1, g2 = r.get("giocatore1"), r.get("giocatore2")
+        p1 = int(r.get("punteggio1", 0) or 0)
+        p2 = int(r.get("punteggio2", 0) or 0)
+        s1, s2, s3 = r.get("set1", ""), r.get("set2", ""), r.get("set3", "")
+
+        if not g1 or not g2:
+            continue  # riga non valida
+
+        ensure(g1); ensure(g2)
+        cls[g1]["Partite giocate"] += 1
+        cls[g2]["Partite giocate"] += 1
+
+        # Conta set vinti
+        wins1 = wins2 = 0
+        valid_sets = 0
+        for sv in (s1, s2, s3):
+            w = parse_set(sv)
+            if w == 1:
+                wins1 += 1; valid_sets += 1
+            elif w == 2:
+                wins2 += 1; valid_sets += 1
+
+        # Determina esito con i set (se possibile)
+        if wins1 == 2 and wins2 <= 1:
+            # Vittoria g1
+            cls[g1]["Vittorie"] += 1
+            cls[g2]["Sconfitte"] += 1
+            if wins2 == 0:
+                # 2–0
+                cls[g1]["Punti"] += 3
+            else:
+                # 2–1
+                cls[g1]["Punti"] += 3
+                cls[g2]["Punti"] += 1
+        elif wins2 == 2 and wins1 <= 1:
+            # Vittoria g2
+            cls[g2]["Vittorie"] += 1
+            cls[g1]["Sconfitte"] += 1
+            if wins1 == 0:
+                # 2–0
+                cls[g2]["Punti"] += 3
+            else:
+                # 2–1
+                cls[g2]["Punti"] += 3
+                cls[g1]["Punti"] += 1
+        else:
+            # Fallback: usa punteggi globali
+            if p1 > p2:
+                cls[g1]["Vittorie"] += 1
+                cls[g2]["Sconfitte"] += 1
+                cls[g1]["Punti"] += 3
+            elif p2 > p1:
+                cls[g2]["Vittorie"] += 1
+                cls[g1]["Sconfitte"] += 1
+                cls[g2]["Punti"] += 3
+            # se p1 == p2 non assegniamo punti (dato ambiguo)
+
+    dfc = pd.DataFrame.from_dict(cls, orient="index")
+    if not dfc.empty:
+        dfc = dfc.sort_values(by=["Punti", "Vittorie", "Sconfitte"], ascending=[False, False, True])
+    return dfc
+
+# -------------------------------
+# Salvataggio risultato
+# -------------------------------
 if st.button("Salva Risultato"):
-    if giocatore1 != giocatore2:
-        data = {
-            "giocatore1": giocatore1,
-            "giocatore2": giocatore2,
-            "punteggio1": punteggio1,
-            "punteggio2": punteggio2,
-            "set1": set1,
-            "set2": set2,
-            "set3": set3
-        }
-        supabase.table(tabella).insert(data).execute()
-        st.success("✅ Risultato salvato con successo!")
-    else:
+    if giocatore1 == giocatore2:
         st.error("❌ I due giocatori devono essere diversi.")
+    else:
+        try:
+            payload = {
+                "giocatore1": giocatore1,
+                "giocatore2": giocatore2,
+                "punteggio1": int(punteggio1),
+                "punteggio2": int(punteggio2),
+                "set1": set1.strip() or None,
+                "set2": set2.strip() or None,
+                "set3": set3.strip() or None,
+            }
+            _ = supabase.table(tabella).insert(payload).execute()
+            st.success(f"✅ Salvato: {giocatore1} vs {giocatore2} | Set: {set1 or '-'}, {set2 or '-'}, {set3 or '-'}")
+        except Exception as e:
+            st.error(f"❌ Errore durante l'inserimento: {e}")
 
+# -------------------------------
+# Storico + Classifica
+# -------------------------------
 st.subheader("📊 Storico Risultati")
-res = supabase.table(tabella).select("*").order("created_at", desc=True).execute()
-df = pd.DataFrame(res.data)
 
-if not df.empty:
-    st.dataframe(df)
+try:
+    # Prova con created_at; se manca, fallback senza order
+    try:
+        res = supabase.table(tabella).select("*").order("created_at", desc=True).execute()
+    except Exception:
+        res = supabase.table(tabella).select("*").execute()
 
-    # Calcolo classifica
-    st.subheader("🏅 Classifica")
-    classifica = {}
-    for _, row in df.iterrows():
-        g1, g2 = row["giocatore1"], row["giocatore2"]
-        p1, p2 = row["punteggio1"], row["punteggio2"]
+    df = pd.DataFrame(res.data or [])
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+        st.subheader("🏅 Classifica")
+        df_classifica = calcola_punti_e_stats(df)
+        st.dataframe(df_classifica, use_container_width=True)
+    else:
+        st.info("Nessun risultato inserito ancora.")
+except Exception as e:
+    st.error(f"❌ Errore nel caricamento dati: {e}")
 
-        # Inizializza giocatori
-        for g in [g1, g2]:
-            if g not in classifica:
-                classifica[g] = {"Punti": 0, "Vittorie": 0, "Sconfitte": 0, "Partite giocate": 0}
-
-        # Aggiorna partite giocate
-        classifica[g1]["Partite giocate"] += 1
-        classifica[g2]["Partite giocate"] += 1
-
-        # Logica punteggi
-        if p1 > p2:
-            classifica[g1]["Vittorie"] += 1
-            classifica[g2]["Sconfitte"] += 1
-            if abs(p1 - p2) >= 2:
-                classifica[g1]["Punti"] += 3
-            else:
-                classifica[g1]["Punti"] += 3
-                classifica[g2]["Punti"] += 1
-        elif p2 > p1:
-            classifica[g2]["Vittorie"] += 1
-            classifica[g1]["Sconfitte"] += 1
-            if abs(p2 - p1) >= 2:
-                classifica[g2]["Punti"] += 3
-            else:
-                classifica[g2]["Punti"] += 3
-                classifica[g1]["Punti"] += 1
-
-    df_classifica = pd.DataFrame.from_dict(classifica, orient="index").sort_values(by="Punti", ascending=False)
-    st.dataframe(df_classifica)
-else:
-    st.info("Nessun risultato inserito ancora.")
+# -------------------------------
+# Diagnostica (facoltativa)
+# -------------------------------
+with st.expander("🛠️ Diagnostica (env vars)", expanded=False):
+    url_ok = bool(os.getenv("SUPABASE_URL"))
+    key_ok = bool(os.getenv("SUPABASE_KEY"))
+    st.write(f"SUPABASE_URL presente: {'✅' if url_ok else '❌'}")
+    st.write(f"SUPABASE_KEY presente: {'✅' if key_ok else '❌'}")
+    st.caption("Le chiavi non vengono mostrate per sicurezza.")
 
