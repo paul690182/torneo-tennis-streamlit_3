@@ -6,7 +6,7 @@ import pandas as pd
 from supabase import create_client, Client
 
 # ===== Configurazione =====
-APP_VERSION = "v2025-11-27 (fix chiavi widget + colonne DB)"
+APP_VERSION = "v2025-11-27 (fix rerun + cast int)"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -103,7 +103,7 @@ def inserisci_match(table_name, g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2):
 
         supabase.table(table_name).insert(record).execute()
         st.success(f"Match inserito in {table_name}! Punti: {g1}={points_p1}, {g2}={points_p2}")
-        st.experimental_rerun()
+        st.rerun()  # Fix per Streamlit >=1.31
     except Exception as e:
         st.error(f"Errore: {e}")
         st.code(traceback.format_exc())
@@ -116,14 +116,14 @@ def calcola_classifica(matches, players):
 
     for m in matches:
         g1, g2 = m['giocatore1'], m['giocatore2']
-        punti[g1] += m.get('points_g1', 0)
-        punti[g2] += m.get('points_g2', 0)
-        sets_vinti[g1] += m.get('sets_g1', 0)
-        sets_vinti[g2] += m.get('sets_g2', 0)
-        sets_persi[g1] += m.get('sets_g2', 0)
-        sets_persi[g2] += m.get('sets_g1', 0)
-        games_vinti[g1] += sum([m.get('set1_g1', 0), m.get('set2_g1', 0), m.get('set3_g1', 0) or 0])
-        games_vinti[g2] += sum([m.get('set1_g2', 0), m.get('set2_g2', 0), m.get('set3_g2', 0) or 0])
+        punti[g1] += int(m.get('points_g1') or 0)
+        punti[g2] += int(m.get('points_g2') or 0)
+        sets_vinti[g1] += int(m.get('sets_g1') or 0)
+        sets_vinti[g2] += int(m.get('sets_g2') or 0)
+        sets_persi[g1] += int(m.get('sets_g2') or 0)
+        sets_persi[g2] += int(m.get('sets_g1') or 0)
+        games_vinti[g1] += sum([int(m.get('set1_g1') or 0), int(m.get('set2_g1') or 0), int(m.get('set3_g1') or 0)])
+        games_vinti[g2] += sum([int(m.get('set1_g2') or 0), int(m.get('set2_g2') or 0), int(m.get('set3_g2') or 0)])
 
     df = pd.DataFrame({
         "Giocatore": players,
@@ -185,7 +185,6 @@ with TAB_DIAG:
     st.write("Top:", "OK" if supabase else "❌")
 
 # ===== NOTE PER DB =====
-# Eseguire queste query su Supabase per aggiungere colonne:
 # ALTER TABLE risultati_advanced ADD COLUMN points_g1 int;
 # ALTER TABLE risultati_advanced ADD COLUMN points_g2 int;
 # ALTER TABLE risultati_advanced ADD COLUMN sets_g1 int;
