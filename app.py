@@ -93,7 +93,7 @@ def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
                 cls[g2]["Punti"] += 2  # 1-2
                 cls[g1]["Punti"] += 1
         else:
-            # Fallback: punteggio globale (es. 7-5, 1-6, 6-4 non compilati come set)
+            # Fallback: punteggio globale
             if p1 > p2:
                 cls[g1]["Vittorie"] += 1
                 cls[g2]["Sconfitte"] += 1
@@ -121,10 +121,10 @@ def carica_partite(table_name: str) -> pd.DataFrame:
         res = supabase.table(table_name).select("*").execute()
         data = res.data or []
         df = pd.DataFrame(data)
-        # Assicura colonne anche se tabella vuota
+        # Fix: aggiunta colonne mancanti con lunghezza coerente
         for col in ["giocatore1", "giocatore2", "punteggio1", "punteggio2", "set1", "set2", "set3"]:
             if col not in df.columns:
-                df[col] = []
+                df[col] = pd.Series([None] * len(df))
         return df
     except APIError as e:
         st.error(f"Errore Supabase ({getattr(e, 'code', 'PGRST')}): {getattr(e, 'message', e)}")
