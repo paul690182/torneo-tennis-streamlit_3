@@ -6,7 +6,7 @@ import pandas as pd
 from supabase import create_client, Client
 
 # ===== Configurazione =====
-APP_VERSION = "v2025-11-27 (sidebar rimossa + tabs + classifica dinamica)"
+APP_VERSION = "v2025-11-27 (fix chiavi widget + colonne DB)"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -46,7 +46,6 @@ ADVANCED_PLAYERS = [
 
 # ===== Funzioni =====
 def compute_match_points(sets_p1, sets_p2):
-    """Calcola punti secondo logica 3-2-1-0"""
     if sets_p1 == 2 and sets_p2 == 0:
         return 3, 0
     if sets_p1 == 0 and sets_p2 == 2:
@@ -58,7 +57,6 @@ def compute_match_points(sets_p1, sets_p2):
     return 0, 0
 
 def sets_won_from_scores(scores):
-    """Determina set vinti da punteggi"""
     sets_p1 = 0
     sets_p2 = 0
     for p1, p2 in scores:
@@ -74,7 +72,6 @@ def inserisci_match(table_name, g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2):
         if g1 == g2:
             st.error("I due giocatori devono essere diversi.")
             return
-        # Validazione punteggi
         for v in [s1g1, s1g2, s2g1, s2g2]:
             if v < 0 or v > 7:
                 st.error("Set 1 e 2 devono essere tra 0 e 7.")
@@ -86,7 +83,6 @@ def inserisci_match(table_name, g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2):
             st.error("Set 3 deve essere tra 0 e 20.")
             return
 
-        # Calcolo set e punti
         sets_p1, sets_p2 = sets_won_from_scores([(s1g1, s1g2), (s2g1, s2g2), (s3g1, s3g2)])
         points_p1, points_p2 = compute_match_points(sets_p1, sets_p2)
 
@@ -107,7 +103,7 @@ def inserisci_match(table_name, g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2):
 
         supabase.table(table_name).insert(record).execute()
         st.success(f"Match inserito in {table_name}! Punti: {g1}={points_p1}, {g2}={points_p2}")
-        st.experimental_rerun()  # Aggiorna classifica
+        st.experimental_rerun()
     except Exception as e:
         st.error(f"Errore: {e}")
         st.code(traceback.format_exc())
@@ -149,18 +145,14 @@ with TAB_ADV:
     st.subheader("Inserisci risultato - Advanced")
     g1 = st.selectbox("Giocatore 1", ADVANCED_PLAYERS, key="adv_g1")
     g2 = st.selectbox("Giocatore 2", [p for p in ADVANCED_PLAYERS if p != g1], key="adv_g2")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        s1g1 = st.number_input("Set1 G1", 0, 7, 6)
-        s2g1 = st.number_input("Set2 G1", 0, 7, 6)
-        s3g1 = st.number_input("Set3 G1 (TB)", 0, 20, 0)
-    with c2:
-        s1g2 = st.number_input("Set1 G2", 0, 7, 4)
-        s2g2 = st.number_input("Set2 G2", 0, 7, 4)
-        s3g2 = st.number_input("Set3 G2 (TB)", 0, 20, 0)
-    with c3:
-        if st.button("Salva risultato Advanced", type="primary"):
-            inserisci_match("risultati_advanced", g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2)
+    s1g1 = st.number_input("Set1 G1", 0, 7, 6, key="adv_s1g1")
+    s2g1 = st.number_input("Set2 G1", 0, 7, 6, key="adv_s2g1")
+    s3g1 = st.number_input("Set3 G1 (TB)", 0, 20, 0, key="adv_s3g1")
+    s1g2 = st.number_input("Set1 G2", 0, 7, 4, key="adv_s1g2")
+    s2g2 = st.number_input("Set2 G2", 0, 7, 4, key="adv_s2g2")
+    s3g2 = st.number_input("Set3 G2 (TB)", 0, 20, 0, key="adv_s3g2")
+    if st.button("Salva risultato Advanced", type="primary", key="btn_adv"):
+        inserisci_match("risultati_advanced", g1, g2, s1g1, s1g2, s2g1, s2g2, s3g1, s3g2)
 
     st.markdown("---")
     st.subheader("Classifica Advanced")
@@ -172,18 +164,14 @@ with TAB_TOP:
     st.subheader("Inserisci risultato - Top")
     tg1 = st.selectbox("Giocatore 1", TOP_PLAYERS, key="top_g1")
     tg2 = st.selectbox("Giocatore 2", [p for p in TOP_PLAYERS if p != tg1], key="top_g2")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        ts1g1 = st.number_input("Set1 G1", 0, 7, 6)
-        ts2g1 = st.number_input("Set2 G1", 0, 7, 6)
-        ts3g1 = st.number_input("Set3 G1 (TB)", 0, 20, 0)
-    with c2:
-        ts1g2 = st.number_input("Set1 G2", 0, 7, 4)
-        ts2g2 = st.number_input("Set2 G2", 0, 7, 4)
-        ts3g2 = st.number_input("Set3 G2 (TB)", 0, 20, 0)
-    with c3:
-        if st.button("Salva risultato Top", type="primary"):
-            inserisci_match("risultati_top", tg1, tg2, ts1g1, ts1g2, ts2g1, ts2g2, ts3g1, ts3g2)
+    ts1g1 = st.number_input("Set1 G1", 0, 7, 6, key="top_s1g1")
+    ts2g1 = st.number_input("Set2 G1", 0, 7, 6, key="top_s2g1")
+    ts3g1 = st.number_input("Set3 G1 (TB)", 0, 20, 0, key="top_s3g1")
+    ts1g2 = st.number_input("Set1 G2", 0, 7, 4, key="top_s1g2")
+    ts2g2 = st.number_input("Set2 G2", 0, 7, 4, key="top_s2g2")
+    ts3g2 = st.number_input("Set3 G2 (TB)", 0, 20, 0, key="top_s3g2")
+    if st.button("Salva risultato Top", type="primary", key="btn_top"):
+        inserisci_match("risultati_top", tg1, tg2, ts1g1, ts1g2, ts2g1, ts2g2, ts3g1, ts3g2)
 
     st.markdown("---")
     st.subheader("Classifica Top")
@@ -195,4 +183,15 @@ with TAB_DIAG:
     st.subheader("Diagnostica Supabase")
     st.write("Advanced:", "OK" if supabase else "❌")
     st.write("Top:", "OK" if supabase else "❌")
+
+# ===== NOTE PER DB =====
+# Eseguire queste query su Supabase per aggiungere colonne:
+# ALTER TABLE risultati_advanced ADD COLUMN points_g1 int;
+# ALTER TABLE risultati_advanced ADD COLUMN points_g2 int;
+# ALTER TABLE risultati_advanced ADD COLUMN sets_g1 int;
+# ALTER TABLE risultati_advanced ADD COLUMN sets_g2 int;
+# ALTER TABLE risultati_top ADD COLUMN points_g1 int;
+# ALTER TABLE risultati_top ADD COLUMN points_g2 int;
+# ALTER TABLE risultati_top ADD COLUMN sets_g1 int;
+# ALTER TABLE risultati_top ADD COLUMN sets_g2 int;
 
