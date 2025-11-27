@@ -1,185 +1,240 @@
 
+# -*- coding: utf-8 -*-
+"""
+App Streamlit: Torneo Tennis tutti contro tutti
+- Sidebar: selettore Girone (Top / Advanced)
+- Form: dropdown con i giocatori del girone selezionato
+- Inserimento partita: salva su Supabase
+- Classifica: aggiornata subito con la logica punteggi
+- Supporto long tie-break (super tie-break a 10 punti) nel 3° set
+
+NOTE:
+- Compila .env con SUPABASE_URL e SUPABASE_ANON_KEY
+- Schema Supabase consigliato:
+  * Tabella: matches
+    - id: bigint (PK)
+    - created_at: timestamptz default now()
+    - girone: text ("Top" | "Advanced")
+    - player1: text
+    - player2: text
+    - set1_p1: int
+    - set1_p2: int
+    - set2_p1: int
+    - set2_p2: int
+    - set3_p1: int null
+    - set3_p2: int null
+    - is_super_tb: bool default false
+    - winner: text
+    - points_p1: int
+    - points_p2: int
+"""
+
 import os
-import pandas as pd
 import streamlit as st
-from supabase import create_client, Client
 from dotenv import load_dotenv
-from postgrest.exceptions import APIError
+from datetime import datetime
+import pandas as pd
 
-# ==== Config & Connessione ====
-load_dotenv()
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# --- Config UI ---
+st.set_page_config(page_title="Torneo Tennis", page_icon="🎾", layout="centered")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.stop()  # Blocca se mancano le variabili (su Render dovrebbero esserci già)
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# Mappa gironi -> tabelle
-TABLE_MAP = {
-    "Top": "partite_top",
-    "Advanced": "partite_advanced",
+# --- Players per girone (conservati) ---
+PLAYERS = {
+    "Top": [
+        "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso",
+        "Giovanni", "Andrea P.", "Giuseppe", "Salvatore", "Leonardino", "Federico",
+        "Luca", "Adriano"
+    ],
+    "Advanced": [
+        "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna",
+        "Paolo Mattioli", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino",
+        "Gianni", "Leonardo", "Francesco M."
+    ],
 }
 
-# Liste giocatori predefinite
-GIOCATORI_TOP = [
-    "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo", "Cris Cosso", "Giovanni",
-    "Andrea P.", "Giuseppe", "Salvatore", "Leonardino", "Federico", "Luca", "Adriano"
-]
+# --- Punteggi ---
+# Regola punti torneo (best-of-3 set):
+# 2-0 -> 3 punti al vincitore, 0 allo sconfitto
+# 2-1 -> 3 al vincitore, 1 allo sconfitto
+def compute_points(sets_p1: int, sets_p2: int):
+    if sets_p1 == 2 and sets_p2 == 0:
+        return 3, 0
+    if sets_p2 == 2 and sets_p1 == 0:
+        return 0, 3
+    if sets_p1 == 2 and sets_p2 == 1:
+        return 3, 1
+    if sets_p2 == 2 and sets_p1 == 1:
+        return 1, 3
+    # Non dovrebbero esistere pareggi in best-of-3
+    return 0, 0
 
-GIOCATORI_ADVANCED = [
-    "Pasquale V.", "Gabriele T.", "Cris Capparoni", "Stefano C.", "Roberto A.", "Susanna",
-    "Paolo Mattioli", "Paolo Rosi", "Michele", "Daniele M.", "Stefano D. R.", "Pino",
-    "Gianni", "Leonardo", "Francesco M."
-]
+# --- Supabase client ---
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
-# ==== Utilità ====
-def parse_set(s: str):
-    """Ritorna 1 se vince giocatore1, 2 se vince giocatore2, None se non valido."""
+supabase = None
+if SUPABASE_URL and SUPABASE_ANON_KEY:
     try:
-        s = (s or "").strip()
-        if "-" not in s:
-            return None
-        a, b = s.split("-")
-        a, b = int(a), int(b)
-        if a > b:
-            return 1
-        elif b > a:
-            return 2
-        return None
-    except Exception:
-        return None
+        from supabase import create_client
+        supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    except Exception as e:
+        st.sidebar.error(f"Supabase non configurato correttamente: {e}")
 
-# Logica punteggi aggiornata:
-# 2–0 → 3 punti vincitore, 0 sconfitto
-# 2–1 → 2 punti vincitore, 1 sconfitto
-# Fallback: punteggio globale → 3 punti vincitore
-def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
-    df = rows_df.copy()
-    df["punteggio1"] = pd.to_numeric(df.get("punteggio1", 0), errors="coerce").fillna(0).astype(int)
-    df["punteggio2"] = pd.to_numeric(df.get("punteggio2", 0), errors="coerce").fillna(0).astype(int)
-    for col in ["set1", "set2", "set3"]:
-        if col in df.columns:
-            df[col] = df[col].fillna("").astype(str)
+# --- Sidebar: selettore girone ---
+st.sidebar.header("Impostazioni")
+girone = st.sidebar.selectbox("Girone", options=list(PLAYERS.keys()))
+players = PLAYERS[girone]
 
-    cls = {}
+st.title("🎾 Torneo Tennis — Inserimento & Classifica")
+st.caption("Girone selezionato: **%s**" % girone)
 
-    def ensure(g):
-        if g not in cls:
-            cls[g] = {"Punti": 0, "Vittorie": 0, "Sconfitte": 0, "Partite giocate": 0}
+# --- Form: inserimento partita ---
+st.subheader("Inserisci una partita")
+with st.form("match_form", clear_on_submit=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        p1 = st.selectbox("Giocatore 1", players, index=0)
+    with col2:
+        p2 = st.selectbox("Giocatore 2", players, index=1)
 
-    for _, r in df.iterrows():
-        g1, g2 = r.get("giocatore1", ""), r.get("giocatore2", "")
-        p1, p2 = r.get("punteggio1", 0), r.get("punteggio2", 0)
-        s1, s2, s3 = r.get("set1", ""), r.get("set2", ""), r.get("set3", "")
-        if not g1 or not g2:
-            continue
+    st.markdown("**Punteggi set** *(inserisci i game vinti nei set 1 e 2; il 3° set può essere un super tie-break a 10)*")
 
-        ensure(g1); ensure(g2)
-        cls[g1]["Partite giocate"] += 1
-        cls[g2]["Partite giocate"] += 1
+    # Checkbox per super tie-break (long tie-break) nel 3° set
+    is_super_tb = st.checkbox("Long tie-break nel 3° set (a 10 punti)", value=True,
+                              help="Se attivo, il 3° set viene deciso con un super tie-break a 10 punti (chi arriva prima a 10 con 2 punti di scarto).")
 
-        wins1 = wins2 = 0
-        for sv in (s1, s2, s3):
-            w = parse_set(sv)
-            if w == 1:
-                wins1 += 1
-            elif w == 2:
-                wins2 += 1
+    c1, c2 = st.columns(2)
+    with c1:
+        set1_p1 = st.number_input("Set 1 - P1 (game)", min_value=0, max_value=7, value=6)
+        set2_p1 = st.number_input("Set 2 - P1 (game)", min_value=0, max_value=7, value=6)
+        # max per set 3 dipende dal super tie-break
+        max_set3 = 15 if is_super_tb else 7
+        set3_p1 = st.number_input("Set 3 - P1 (game o punti TB)", min_value=0, max_value=max_set3, value=0)
+    with c2:
+        set1_p2 = st.number_input("Set 1 - P2 (game)", min_value=0, max_value=7, value=4)
+        set2_p2 = st.number_input("Set 2 - P2 (game)", min_value=0, max_value=7, value=4)
+        set3_p2 = st.number_input("Set 3 - P2 (game o punti TB)", min_value=0, max_value=max_set3, value=0)
 
-        if wins1 == 2 and wins2 <= 1:
-            cls[g1]["Vittorie"] += 1
-            cls[g2]["Sconfitte"] += 1
-            if wins2 == 0:
-                cls[g1]["Punti"] += 3  # 2-0
-            else:
-                cls[g1]["Punti"] += 2  # 2-1
-                cls[g2]["Punti"] += 1
-        elif wins2 == 2 and wins1 <= 1:
-            cls[g2]["Vittorie"] += 1
-            cls[g1]["Sconfitte"] += 1
-            if wins1 == 0:
-                cls[g2]["Punti"] += 3  # 0-2
-            else:
-                cls[g2]["Punti"] += 2  # 1-2
-                cls[g1]["Punti"] += 1
+    submitted = st.form_submit_button("Salva partita su Supabase")
+
+    if submitted:
+        # Validazioni base
+        if p1 == p2:
+            st.error("I due giocatori devono essere diversi.")
         else:
-            # Fallback: punteggio globale
-            if p1 > p2:
-                cls[g1]["Vittorie"] += 1
-                cls[g2]["Sconfitte"] += 1
-                cls[g1]["Punti"] += 3
-            elif p2 > p1:
-                cls[g2]["Vittorie"] += 1
-                cls[g1]["Sconfitte"] += 1
-                cls[g2]["Punti"] += 3
+            # Calcolo set vinti per i primi due set
+            set1_w_p1 = int(set1_p1 > set1_p2)
+            set1_w_p2 = int(set1_p2 > set1_p1)
+            set2_w_p1 = int(set2_p1 > set2_p2)
+            set2_w_p2 = int(set2_p2 > set2_p1)
 
-    dfc = pd.DataFrame.from_dict(cls, orient="index")
-    if not dfc.empty:
-        dfc = dfc.sort_values(by=["Punti", "Vittorie"], ascending=[False, False])
-    return dfc
+            sets_p1 = set1_w_p1 + set2_w_p1
+            sets_p2 = set1_w_p2 + set2_w_p2
 
-# ==== UI ====
-st.title("🏆 Torneo Tennis - Classifica & Storico")
+            # Se è 1-1 dopo due set, il 3° set è obbligatorio
+            third_played = (set3_p1 > 0 or set3_p2 > 0)
+            if sets_p1 == 1 and sets_p2 == 1 and not third_played:
+                st.error("Con 1–1 dopo due set, devi inserire il 3° set (super tie-break o set normale).")
+            else:
+                # Valutazione 3° set (se giocato)
+                if third_played:
+                    # Nel super tie-break vince chi ha più punti (tipicamente a 10)
+                    set3_w_p1 = int(set3_p1 > set3_p2)
+                    set3_w_p2 = int(set3_p2 > set3_p1)
+                    sets_p1 += set3_w_p1
+                    sets_p2 += set3_w_p2
 
-# Selettore Girone
-girone = st.sidebar.selectbox("Girone", ["Top", "Advanced"])
-TABLE_NAME = TABLE_MAP.get(girone, "partite_top")
+                # Nessun pareggio ammesso in best-of-3
+                if sets_p1 == sets_p2:
+                    st.error("Best-of-3 non consente pareggi: controlla i punteggi dei set.")
+                else:
+                    pnts_p1, pnts_p2 = compute_points(sets_p1, sets_p2)
+                    winner = p1 if sets_p1 > sets_p2 else p2
 
-@st.cache_data(ttl=60)
-def carica_partite(table_name: str) -> pd.DataFrame:
+                    payload = {
+                        "created_at": datetime.utcnow().isoformat(),
+                        "girone": girone,
+                        "player1": p1,
+                        "player2": p2,
+                        "set1_p1": int(set1_p1),
+                        "set1_p2": int(set1_p2),
+                        "set2_p1": int(set2_p1),
+                        "set2_p2": int(set2_p2),
+                        "set3_p1": int(set3_p1),
+                        "set3_p2": int(set3_p2),
+                        "is_super_tb": bool(is_super_tb),
+                        "winner": winner,
+                        "points_p1": pnts_p1,
+                        "points_p2": pnts_p2,
+                    }
+
+                    if supabase:
+                        try:
+                            res = supabase.table("matches").insert(payload).execute()
+                            st.success("Partita salvata! ✅")
+                            # Riepilogo compatto
+                            def fmt_set(a, b):
+                                return f"{a}-{b}"
+                            set3_label = " (TB10)" if is_super_tb and third_played else ""
+                            st.info(
+                                f"**{p1} vs {p2}** — "
+                                f"{fmt_set(set1_p1, set1_p2)}, {fmt_set(set2_p1, set2_p2)}"
+                                + (f", {fmt_set(set3_p1, set3_p2)}{set3_label}" if third_played else "")
+                                + f" — **Vincitore:** {winner} — **Punti:** {pnts_p1}-{pnts_p2}"
+                            )
+                        except Exception as e:
+                            st.error(f"Errore salvataggio su Supabase: {e}")
+                    else:
+                        st.warning("Supabase non configurato: la partita non è stata salvata. Configura .env e ricarica l'app.")
+
+# --- Classifica ---
+st.subheader("Classifica aggiornata")
+
+matches_df = pd.DataFrame()
+if supabase:
     try:
-        res = supabase.table(table_name).select("*").execute()
-        data = res.data or []
-        df = pd.DataFrame(data)
-        # Fix: aggiunta colonne mancanti con lunghezza coerente
-        for col in ["giocatore1", "giocatore2", "punteggio1", "punteggio2", "set1", "set2", "set3"]:
-            if col not in df.columns:
-                df[col] = pd.Series([None] * len(df))
-        return df
-    except APIError as e:
-        st.error(f"Errore Supabase ({getattr(e, 'code', 'PGRST')}): {getattr(e, 'message', e)}")
-        st.info("Controlla che la tabella esista e il nome sia corretto.")
-        return pd.DataFrame(columns=["giocatore1", "giocatore2", "punteggio1", "punteggio2", "set1", "set2", "set3"])
+        data = supabase.table("matches").select("*").eq("girone", girone).execute()
+        rows = data.data if hasattr(data, 'data') else []
+        matches_df = pd.DataFrame(rows)
+    except Exception as e:
+        st.error(f"Errore lettura matches: {e}")
 
-matches_df = carica_partite(TABLE_NAME)
-
-# Dropdown giocatori in base al girone
-lista_giocatori = GIOCATORI_TOP if girone == "Top" else GIOCATORI_ADVANCED
-
-st.subheader(f"Inserisci risultato partita – Girone {girone}")
-with st.form("nuova_partita"):
-    g1 = st.selectbox("Giocatore 1", lista_giocatori)
-    g2 = st.selectbox("Giocatore 2", [g for g in lista_giocatori if g != g1])
-    p1 = st.number_input("Punteggio Giocatore 1", min_value=0, step=1)
-    p2 = st.number_input("Punteggio Giocatore 2", min_value=0, step=1)
-    set1 = st.text_input("Set 1 (es. 6-4)")
-    set2 = st.text_input("Set 2 (es. 6-4)")
-    set3 = st.text_input("Set 3 (opzionale)")
-    submitted = st.form_submit_button("Aggiungi Partita")
-    if submitted and g1 and g2:
-        new_row = {
-            "giocatore1": g1, "giocatore2": g2,
-            "punteggio1": int(p1), "punteggio2": int(p2),
-            "set1": set1, "set2": set2, "set3": set3
+if matches_df.empty:
+    st.info("Nessuna partita presente per questo girone.")
+else:
+    # Calcolo classifica: punti cumulati, partite giocate, vittorie
+    def row_points(r):
+        return {
+            r["player1"]: r.get("points_p1", 0),
+            r["player2"]: r.get("points_p2", 0),
         }
-        try:
-            supabase.table(TABLE_NAME).insert(new_row).execute()
-            st.success("✅ Partita aggiunta!")
-            st.cache_data.clear()   # invalida la cache
-            st.rerun()              # ricarica la pagina per aggiornare classifica/storico
-        except APIError as e:
-            st.error(f"Errore inserimento Supabase ({getattr(e, 'code', 'PGRST')}): {getattr(e, 'message', e)}")
 
-st.subheader(f"Classifica – Girone {girone}")
-classifica = calcola_punti_e_stats(matches_df)
-st.dataframe(classifica, use_container_width=True)
+    points = {}
+    wins = {}
+    played = {}
 
-st.subheader(f"Storico Partite – Girone {girone}")
-st.dataframe(matches_df, use_container_width=True)
+    for _, r in matches_df.iterrows():
+        for pl, pts in row_points(r).items():
+            points[pl] = points.get(pl, 0) + int(pts)
+            played[pl] = played.get(pl, 0) + 1
+        w = r.get("winner")
+        if w and w not in (None, "", "Pareggio"):
+            wins[w] = wins.get(w, 0) + 1
 
-# Download CSV
-st.download_button("Scarica Storico", matches_df.to_csv(index=False), "storico_partite.csv")
-st.download_button("Scarica Classifica", classifica.to_csv(), "classifica.csv")
+    # Costruisci dataframe classifica con tutti i giocatori del girone (anche senza partite)
+    rows = []
+    for pl in players:
+        rows.append({
+            "Giocatore": pl,
+            "Punti": points.get(pl, 0),
+            "Giocate": played.get(pl, 0),
+            "Vittorie": wins.get(pl, 0),
+        })
+    standings_df = pd.DataFrame(rows).sort_values(["Punti", "Vittorie"], ascending=[False, False]).reset_index(drop=True)
+
+    st.dataframe(standings_df, use_container_width=True)
+
+st.divider()
+st.markdown("ℹ️ Il 3° set può essere giocato come **super tie-break a 10 punti**. L’app assegna il set al giocatore con più punti nel TB10.")
 
