@@ -19,7 +19,7 @@ st.markdown("""
 st.title("🏆 Torneo Tennis - Inserisci Risultato")
 
 # -------------------------------
-# Dati giocatori (dal tuo elenco aggiornato)
+# Dati giocatori
 # -------------------------------
 giocatori_top = [
     "Simone", "Maurizio P.", "Marco", "Riccardo", "Massimo",
@@ -50,10 +50,7 @@ col1, col2 = st.columns(2)
 with col1:
     giocatore1 = st.selectbox("Giocatore 1", giocatori, key="g1")
 with col2:
-    # Escludi automaticamente il giocatore1
-    giocatore2 = st.selectbox(
-        "Giocatore 2", [g for g in giocatori if g != giocatore1], key="g2"
-    )
+    giocatore2 = st.selectbox("Giocatore 2", [g for g in giocatori if g != giocatore1], key="g2")
 
 punteggio1 = st.number_input("Punteggio Giocatore 1 (0–20)", min_value=0, max_value=20, step=1)
 punteggio2 = st.number_input("Punteggio Giocatore 2 (0–20)", min_value=0, max_value=20, step=1)
@@ -66,12 +63,6 @@ set3 = st.text_input("Set 3 (es. 6-4)")
 # Utilities
 # -------------------------------
 def parse_set(s: str):
-    """
-    Ritorna:
-      1 se vince il primo,
-      2 se vince il secondo,
-      None se non valido o non compilato.
-    """
     if not s or "-" not in s:
         return None
     try:
@@ -84,18 +75,6 @@ def parse_set(s: str):
         return None
 
 def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Costruisce la classifica con:
-      - Punti
-      - Vittorie
-      - Sconfitte
-      - Partite giocate
-
-    Regole punti:
-      - 2–0 → 3 al vincitore, 0 allo sconfitto
-      - 2–1 → 3 al vincitore, 1 allo sconfitto
-    Fallback: se set non determinano chiaramente il 2–x, usa punteggio1/punteggio2 e assegna 3 punti al vincitore.
-    """
     cls = {}
     def ensure(g):
         if g not in cls:
@@ -108,47 +87,29 @@ def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
         s1, s2, s3 = r.get("set1", ""), r.get("set2", ""), r.get("set3", "")
 
         if not g1 or not g2:
-            continue  # riga non valida
+            continue
 
         ensure(g1); ensure(g2)
         cls[g1]["Partite giocate"] += 1
         cls[g2]["Partite giocate"] += 1
 
-        # Conta set vinti
         wins1 = wins2 = 0
-        valid_sets = 0
         for sv in (s1, s2, s3):
             w = parse_set(sv)
-            if w == 1:
-                wins1 += 1; valid_sets += 1
-            elif w == 2:
-                wins2 += 1; valid_sets += 1
+            if w == 1: wins1 += 1
+            elif w == 2: wins2 += 1
 
-        # Determina esito con i set (se possibile)
         if wins1 == 2 and wins2 <= 1:
-            # Vittoria g1
             cls[g1]["Vittorie"] += 1
             cls[g2]["Sconfitte"] += 1
-            if wins2 == 0:
-                # 2–0
-                cls[g1]["Punti"] += 3
-            else:
-                # 2–1
-                cls[g1]["Punti"] += 3
-                cls[g2]["Punti"] += 1
+            cls[g1]["Punti"] += 3
+            if wins2 == 1: cls[g2]["Punti"] += 1
         elif wins2 == 2 and wins1 <= 1:
-            # Vittoria g2
             cls[g2]["Vittorie"] += 1
             cls[g1]["Sconfitte"] += 1
-            if wins1 == 0:
-                # 2–0
-                cls[g2]["Punti"] += 3
-            else:
-                # 2–1
-                cls[g2]["Punti"] += 3
-                cls[g1]["Punti"] += 1
+            cls[g2]["Punti"] += 3
+            if wins1 == 1: cls[g1]["Punti"] += 1
         else:
-            # Fallback: usa punteggi globali
             if p1 > p2:
                 cls[g1]["Vittorie"] += 1
                 cls[g2]["Sconfitte"] += 1
@@ -157,11 +118,10 @@ def calcola_punti_e_stats(rows_df: pd.DataFrame) -> pd.DataFrame:
                 cls[g2]["Vittorie"] += 1
                 cls[g1]["Sconfitte"] += 1
                 cls[g2]["Punti"] += 3
-            # se p1 == p2 non assegniamo punti (dato ambiguo)
 
     dfc = pd.DataFrame.from_dict(cls, orient="index")
     if not dfc.empty:
-        dfc = dfc.sort_values(by=["Punti", "Vittorie", "Sconfitte"], ascending=[False, False, True])
+        dfc = dfc.sort_values(by=["Punti", "Vittorie"], ascending=[False, False])
     return dfc
 
 # -------------------------------
@@ -181,7 +141,7 @@ if st.button("Salva Risultato"):
                 "set2": set2.strip() or None,
                 "set3": set3.strip() or None,
             }
-            _ = supabase.table(tabella).insert(payload).execute()
+            supabase.table(tabella).insert(payload).execute()
             st.success(f"✅ Salvato: {giocatore1} vs {giocatore2} | Set: {set1 or '-'}, {set2 or '-'}, {set3 or '-'}")
         except Exception as e:
             st.error(f"❌ Errore durante l'inserimento: {e}")
@@ -190,14 +150,8 @@ if st.button("Salva Risultato"):
 # Storico + Classifica
 # -------------------------------
 st.subheader("📊 Storico Risultati")
-
 try:
-    # Prova con created_at; se manca, fallback senza order
-    try:
-        res = supabase.table(tabella).select("*").order("created_at", desc=True).execute()
-    except Exception:
-        res = supabase.table(tabella).select("*").execute()
-
+    res = supabase.table(tabella).select("*").order("created_at", desc=True).execute()
     df = pd.DataFrame(res.data or [])
     if not df.empty:
         st.dataframe(df, use_container_width=True)
