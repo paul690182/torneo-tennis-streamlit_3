@@ -56,15 +56,20 @@ PLAYERS = {
 # Regola punti torneo (best-of-3 set):
 # 2-0 -> 3 punti al vincitore, 0 allo sconfitto
 # 2-1 -> 3 al vincitore, 1 allo sconfitto
-def compute_points(sets_p1: int, sets_p2: int):
+
+def compute_points(sets_p1: int, sets_p2: int) -> tuple[int, int]:
+    # 2-0 -> 3 punti al vincitore, 0 allo sconfitto
     if sets_p1 == 2 and sets_p2 == 0:
         return 3, 0
     if sets_p2 == 2 and sets_p1 == 0:
         return 0, 3
+
+    # 2-1 -> 2 punti al vincitore, 1 allo sconfitto
     if sets_p1 == 2 and sets_p2 == 1:
-        return 3, 1
+        return 2, 1
     if sets_p2 == 2 and sets_p1 == 1:
-        return 1, 3
+        return 1, 2
+
     # Non dovrebbero esistere pareggi in best-of-3
     return 0, 0
 
