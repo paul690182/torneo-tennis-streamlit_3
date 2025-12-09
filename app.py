@@ -35,8 +35,69 @@ from dotenv import load_dotenv
 from datetime import datetime
 import pandas as pd
 
+# === Helpers / Supabase & salvataggio unico ===
+import hashlib
+import streamlit as st
+
+@st.cache_resource(show_spinner=False)
+def get_supabase_client():
+    # Adatta a come già leggi le credenziali
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    from supabase import create_client  # import locale per ambienti serverless
+    return create_client(url, key)
+
+def build_match_hash(payload: dict) -> str:
+    """
+    Crea un hash deterministico che identifica in modo univoco la partita.
+    Adatta i campi a quelli REALI che salvi in tabella.
+    """
+    parts = [
+        str(payload.get("giorno", "")).strip(),
+        str(payload.get("girone", "")).strip().lower(),
+        str(payload.get("giocatore_a", "")).strip().lower(),
+        str(payload.get("giocatore_b", "")).strip().lower(),
+        str(payload.get("set1", "")).strip(),
+        str(payload.get("set2", "")).strip(),
+        str(payload.get("set3", "")).strip(),
+    ]
+    canonical = "|".join(parts)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+def save_match_to_supabase(payload: dict) -> dict:
+    """
+    Unico punto di persistenza. Usa upsert su match_hash per evitare duplicati.
+    Ritorna dict {ok: bool, msg: str, data: ...}
+    """
+    supabase = get_supabase_client()
+
+    # Assicurati di avere il match_hash nel payload
+    if "match_hash" not in payload or not payload["match_hash"]:
+        payload["match_hash"] = build_match_hash(payload)
+
+    try:
+        # Richiede una UNIQUE su 'match_hash' lato DB (vedi step 4)
+        res = supabase.table("partite").upsert(payload, on_conflict="match_hash").execute()
+        data = getattr(res, "data", None)
+        error = getattr(res, "error", None)
+        if error:
+            return {"ok": False, "msg": str(error)}
+        return {"ok": True, "msg": "Partita salvata! ✅", "data": data}
+    except Exception as e:
+        return {"ok": False, "msg": f"Errore durante il salvataggio su Supabase: {e}"}
+
+
+
 # --- Config UI ---
 st.set_page_config(page_title="Torneo Tennis", page_icon="🎾", layout="centered")
+
+# === Stato di sessione per governare i salvataggi (PUNTO 2) ===
+if "save_in_progress" not in st.session_state:
+    st.session_state.save_in_progress = False
+if "saved_once" not in st.session_state:
+    st.session_state.saved_once = False
+
+
 
 # --- Players per girone (conservati) ---
 PLAYERS = {
