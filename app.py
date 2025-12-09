@@ -91,6 +91,16 @@ st.sidebar.header("Impostazioni")
 girone = st.sidebar.selectbox("Girone", options=list(PLAYERS.keys()))
 players = PLAYERS[girone]
 
+# ✅ Svuota la cache appena entri nella sezione (temporaneo, utile oggi per pulire i dati vecchi)
+import streamlit as st
+st.cache_data.clear()
+
+# ✅ Pulsante in sidebar per forzare l'aggiornamento
+with st.sidebar:
+    if st.button("🔄 Aggiorna classifica"):
+        st.cache_data.clear()
+        st.experimental_rerun()
+
 st.title("🎾 Torneo Tennis — Inserimento & Classifica")
 st.caption("Girone selezionato: **%s**" % girone)
 
