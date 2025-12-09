@@ -207,22 +207,33 @@ with st.form("match_form", clear_on_submit=True):
 
                     
 
+
 # ---- Salvataggio partita su Supabase ----
 if supabase:
     try:
-        res = supabase.table("matches").insert(payload).execute()
+        res = supabase.table("matches").insert({
+            "girone": girone,
+            "player1": player1,
+            "player2": player2,
+            "winner": winner,
+            "points_p1": points_p1,
+            "points_p2": points_p2,
+            "set1_p1": set1_p1, "set1_p2": set1_p2,
+            "set2_p1": set2_p1, "set2_p2": set2_p2,
+            "set3_p1": set3_p1, "set3_p2": set3_p2,
+        }).execute()
+
         st.success("Partita salvata! ✅")
 
-        # ✅ invalida cache delle classifiche (decorate con @st.cache_data)
+        # ✅ invalida cache delle classifiche e ricarica
         st.cache_data.clear()
-
-        # ✅ ricarica subito la pagina per mostrare la classifica aggiornata
         st.experimental_rerun()
 
     except Exception as e:
         st.error(f"Errore durante il salvataggio su Supabase: {e}")
 else:
     st.warning("Supabase non configurato: la partita non è stata salvata. Configura .env e ricarica l'app.")
+
 
 
 # --- Classifica aggiornata (solo VIEW) ---
