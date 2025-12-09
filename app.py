@@ -181,31 +181,61 @@ with st.form("match_form", clear_on_submit=True):
                     sets_p1 += set3_w_p1
                     sets_p2 += set3_w_p2
 
-                # Nessun pareggio ammesso in best-of-3
-                if sets_p1 == sets_p2:
-                    st.error("Best-of-3 non consente pareggi: controlla i punteggi dei set.")
-                else:
-                    pnts_p1, pnts_p2 = compute_points(sets_p1, sets_p2)
-                    winner = p1 if sets_p1 > sets_p2 else p2
+               
+# --- Inserimento su Supabase (aggiungi DA QUI in poi) ---
+try:
+    # Calcolo winner e punti in base ai set vinti (2-0 => 3-0, 2-1 => 3-1, 0-2 => 0-3)
+    if sets_p1 > sets_p2:
+        winner = "player1"
+        points_p1, points_p2 = (3, 1) if sets_p2 == 1 else (3, 0)
+    elif sets_p2 > sets_p1:
+        winner = "player2"
+        points_p2, points_p1 = (3, 1) if sets_p1 == 1 else (3, 0)
+    else:
+        # Non dovrebbe accadere con i tuoi controlli; fallback sicuro
+        winner = ""
+        points_p1 = 0
+        points_p2 = 0
 
-                    payload = {
-                        "created_at": datetime.utcnow().isoformat(),
-                        "girone": girone,
-                        "player1": p1,
-                        "player2": p2,
-                        "set1_p1": int(set1_p1),
-                        "set1_p2": int(set1_p2),
-                        "set2_p1": int(set2_p1),
-                        "set2_p2": int(set2_p2),
-                        "set3_p1": int(set3_p1),
-                        "set3_p2": int(set3_p2),
-                        "is_super_tb": bool(is_super_tb),
-                        "winner": winner,
-                        "points_p1": pnts_p1,
-                        "points_p2": pnts_p2,
-                    }
+    # Se il 3° set non è stato giocato (0-0), salviamo NULL (None) come da schema int null
+    s3p1_to_save = int(set3_p1) if (int(set3_p1) or int(set3_p2)) else None
+    s3p2_to_save = int(set3_p2) if (int(set3_p1) or int(set3_p2)) else None
 
-                    
+    # Dizionario con NOMI COLONNE esatti (schema: matches)
+    data = {
+        "girone": "Top",            # se hai una variabile di girone, usa quella al posto di "Top"
+        "player1": p1,
+        "player2": p2,
+        "set1_p1": int(set1_p1),
+        "set1_p2": int(set1_p2),
+        "set2_p1": int(set2_p1),
+        "set2_p2": int(set2_p2),
+        "set3_p1": s3p1_to_save,    # int oppure null
+        "set3_p2": s3p2_to_save,    # int oppure null
+        "is_super_tb": bool(is_super_tb),  # True se long tie-break attivo
+        "winner": winner,           # "player1" | "player2" | ""
+        "points_p1": int(points_p1),
+        "points_p2": int(points_p2),
+        # "created_at": datetime.utcnow().isoformat(),  # opzionale: hai default now() in Supabase
+    }
+
+    # Inserisci su Supabase
+    res = supabase.table("matches").insert(data).execute()
+    st.success("Partita salvata! ✅")
+
+    # Ricarico immediato (classifica senza bottone)
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+    try:
+        st.rerun()
+    except Exception:
+        st.experimental_rerun()
+
+except Exception as e:
+    st.error(f"Errore durante il salvataggio su Supabase: {e}")
+
 
 
 # ---- Salvataggio partita su Supabase ----
