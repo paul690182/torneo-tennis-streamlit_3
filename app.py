@@ -96,10 +96,17 @@ import streamlit as st
 st.cache_data.clear()
 
 # ✅ Pulsante in sidebar per forzare l'aggiornamento
+
+
 with st.sidebar:
     if st.button("🔄 Aggiorna classifica"):
         st.cache_data.clear()
-        st.experimental_rerun()
+        # Rerun compatibile con tutte le versioni di Streamlit
+        try:
+            st.rerun()  # Streamlit recente (>= 1.24)
+        except AttributeError:
+            st.experimental_rerun()  # fallback per versioni più vecchie
+
 
 st.title("🎾 Torneo Tennis — Inserimento & Classifica")
 st.caption("Girone selezionato: **%s**" % girone)
