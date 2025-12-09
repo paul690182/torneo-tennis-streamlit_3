@@ -158,6 +158,7 @@ with st.form("match_form", clear_on_submit=True):
         # Validazioni base
         if p1 == p2:
             st.error("I due giocatori devono essere diversi.")
+         st.stop()
         else:
             # Calcolo set vinti per i primi due set
             set1_w_p1 = int(set1_p1 > set1_p2)
@@ -167,11 +168,72 @@ with st.form("match_form", clear_on_submit=True):
 
             sets_p1 = set1_w_p1 + set2_w_p1
             sets_p2 = set1_w_p2 + set2_w_p2
+         
+        # ===== BLOCCO SUPABASE: INCOLLA QUI, SUBITO DOPO l'aggiornamento di sets_p1/sets_p2 del 3° set =====
+        try:
+            # Calcolo winner e punti classifica (3–1–0)
+            if sets_p1 > sets_p2:
+                winner = "player1"
+                points_p1, points_p2 = (3, 1) if sets_p2 == 1 else (3, 0)
+            elif sets_p2 > sets_p1:
+                winner = "player2"
+                points_p2, points_p1 = (3, 1) if sets_p1 == 1 else (3, 0)
+            else:
+                # Non dovrebbe accadere con le tue validazioni
+                winner = ""
+                points_p1 = 0
+                points_p2 = 0
+
+            # Se il 3° set non è giocato (0-0), salva NULL (None) come da schema (int null)
+            s3p1_to_save = int(set3_p1) if (int(set3_p1) or int(set3_p2)) else None
+            s3p2_to_save = int(set3_p2) if (int(set3_p1) or int(set3_p2)) else None
+
+            # Dizionario con NOMI COLONNE IDENTICI a Supabase (tabella: matches)
+            data = {
+                "girone": "Top",            # se hai una variabile 'girone', metti quella
+                "player1": p1,              # usa p1/p2 (le tue variabili), NON variabili inesistenti "player1"/"player2"
+                "player2": p2,
+                "set1_p1": int(set1_p1),
+                "set1_p2": int(set1_p2),
+                "set2_p1": int(set2_p1),
+                "set2_p2": int(set2_p2),
+                "set3_p1": s3p1_to_save,    # int oppure None
+                "set3_p2": s3p2_to_save,    # int oppure None
+                "is_super_tb": bool(is_super_tb),
+                "winner": winner,           # "player1" | "player2" | ""
+                "points_p1": int(points_p1),
+                "points_p2": int(points_p2),
+                # "created_at": datetime.utcnow().isoformat(),  # opzionale; Supabase ha default now()
+            }
+
+            # (Opzionale) Debug temporaneo
+            # st.write("DEBUG data:", data)
+            # st.write("DEBUG sets:", {"sets_p1": sets_p1, "sets_p2": sets_p2, "third_played": third_played})
+
+            # Inserisci su Supabase
+            res = supabase.table("matches").insert(data).execute()
+            st.success("Partita salvata! ✅")
+
+            # Aggiorna subito la UI (classifica senza bottone)
+            try:
+                st.cache_data.clear()
+            except Exception:
+                pass
+            try:
+                st.rerun()
+            except Exception:
+                st.experimental_rerun()
+
+        except Exception as e:
+            st.error(f"Errore durante il salvataggio su Supabase: {e}")
+        # ===== FINE BLOCCO SUPABASE =====
+
 
             # Se è 1-1 dopo due set, il 3° set è obbligatorio
             third_played = (set3_p1 > 0 or set3_p2 > 0)
             if sets_p1 == 1 and sets_p2 == 1 and not third_played:
                 st.error("Con 1–1 dopo due set, devi inserire il 3° set (super tie-break o set normale).")
+             st.stop()  # blocca: evita insert con dati incompleti
             else:
                 # Valutazione 3° set (se giocato)
                 if third_played:
