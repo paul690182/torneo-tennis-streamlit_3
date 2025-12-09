@@ -91,6 +91,40 @@ st.sidebar.header("Impostazioni")
 girone = st.sidebar.selectbox("Girone", options=list(PLAYERS.keys()))
 players = PLAYERS[girone]
 
+# --- Lettura classifica dalle VIEW del DB ---
+import pandas as pd
+from sqlalchemy import create_engine
+
+# Recupera la connection string Postgres da secrets/env
+db_url = (
+    st.secrets.get("POSTGRES_URL") or st.secrets.get("postgres_url")
+    or os.environ.get("POSTGRES_URL") or os.environ.get("postgres_url")
+)
+
+# Piccola diagnostica: utile per capire se stai puntando al DB giusto
+st.write("DB:", db_url[:40] + "..." if db_url else "❌ mancante")
+
+# Carica la classifica dalla VIEW in base al girone selezionato
+if not db_url:
+    st.error("Configura POSTGRES_URL (o postgres_url) in Render/Secrets per leggere la classifica dal DB.")
+    df_classifica = pd.DataFrame()
+else:
+    engine = create_engine(db_url)
+    tab_view = "classifica_top" if girone.lower() == "top" else "classifica_advanced"
+    try:
+        with engine.connect() as conn:
+            df_classifica = pd.read_sql(
+                f"""
+                SELECT nome, punti, vinte, perse, set_vinti, set_persi, diff_set, games_vinti, games_persi
+                FROM public.{tab_view}
+                ORDER BY punti DESC, nome;
+                """,
+                conn
+            )
+    except Exception as e:
+        st.error(f"Errore nel leggere la VIEW di classifica '{tab_view}': {e}")
+        df_classifica = pd.DataFrame()
+
 # ✅ Svuota la cache appena entri nella sezione (temporaneo, utile oggi per pulire i dati vecchi)
 import streamlit as st
 st.cache_data.clear()
@@ -210,50 +244,17 @@ with st.form("match_form", clear_on_submit=True):
                     else:
                         st.warning("Supabase non configurato: la partita non è stata salvata. Configura .env e ricarica l'app.")
 
-# --- Classifica ---
-st.subheader("Classifica aggiornata")
 
-matches_df = pd.DataFrame()
-if supabase:
-    try:
-        data = supabase.table("matches").select("*").eq("girone", girone).execute()
-        rows = data.data if hasattr(data, 'data') else []
-        matches_df = pd.DataFrame(rows)
-    except Exception as e:
-        st.error(f"Errore lettura matches: {e}")
-
-if matches_df.empty:
-    st.info("Nessuna partita presente per questo girone.")
+# --- Classifica aggiornata (solo VIEW) ---
+st.subheader("🏆 Classifica aggiornata")
+if df_classifica.empty:
+    st.info("Nessuna riga in classifica per questo girone (inserisci una partita per iniziare).")
 else:
-    # Calcolo classifica: punti cumulati, partite giocate, vittorie
-    def row_points(r):
-        return {
-            r["player1"]: r.get("points_p1", 0),
-            r["player2"]: r.get("points_p2", 0),
-        }
+    st.dataframe(df_classifica, use_container_width=True)
 
-    points = {}
-    wins = {}
-    played = {}
+st.divider()
+st.markdown("ℹ️ La classifica è calcolata dal DB (VIEW). Il 3° set può essere un **super tie-break a 10 punti** (es. 10–8).")
 
-    for _, r in matches_df.iterrows():
-        for pl, pts in row_points(r).items():
-            points[pl] = points.get(pl, 0) + int(pts)
-            played[pl] = played.get(pl, 0) + 1
-        w = r.get("winner")
-        if w and w not in (None, "", "Pareggio"):
-            wins[w] = wins.get(w, 0) + 1
-
-    # Costruisci dataframe classifica con tutti i giocatori del girone (anche senza partite)
-    rows = []
-    for pl in players:
-        rows.append({
-            "Giocatore": pl,
-            "Punti": points.get(pl, 0),
-            "Giocate": played.get(pl, 0),
-            "Vittorie": wins.get(pl, 0),
-        })
-    standings_df = pd.DataFrame(rows).sort_values(["Punti", "Vittorie"], ascending=[False, False]).reset_index(drop=True)
 
     st.dataframe(standings_df, use_container_width=True)
 
