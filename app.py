@@ -205,22 +205,21 @@ with st.form("match_form", clear_on_submit=True):
                         "points_p2": pnts_p2,
                     }
 
-                    if supabase:
-                        try:
-                            res = supabase.table("matches").insert(payload).execute()
-                            st.success("Partita salvata! ✅")
-                            # Riepilogo compatto
-                            def fmt_set(a, b):
-                                return f"{a}-{b}"
-                            set3_label = " (TB10)" if is_super_tb and third_played else ""
-                            st.info(
-                                f"**{p1} vs {p2}** — "
-                                f"{fmt_set(set1_p1, set1_p2)}, {fmt_set(set2_p1, set2_p2)}"
-                                + (f", {fmt_set(set3_p1, set3_p2)}{set3_label}" if third_played else "")
-                                + f" — **Vincitore:** {winner} — **Punti:** {pnts_p1}-{pnts_p2}"
-                            )
-                        except Exception as e:
-                            st.error(f"Errore salvataggio su Supabase: {e}")
+                    
+if supabase:
+    try:
+        res = supabase.table("matches").insert(payload).execute()
+        st.success("Partita salvata! ✅")
+
+        # ✅ invalida cache delle classifiche (decorate con @st.cache_data)
+        st.cache_data.clear()
+
+        # ✅ ricarica subito la pagina per mostrare la classifica aggiornata
+        st.experimental_rerun()
+
+    except Exception as e:
+        st.error(f"Errore durante il salvataggio su Supabase: {e}")
+
                     else:
                         st.warning("Supabase non configurato: la partita non è stata salvata. Configura .env e ricarica l'app.")
 
