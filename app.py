@@ -92,38 +92,28 @@ girone = st.sidebar.selectbox("Girone", options=list(PLAYERS.keys()))
 players = PLAYERS[girone]
 
 # --- Lettura classifica dalle VIEW del DB ---
+
 import pandas as pd
-from sqlalchemy import create_engine
 
-# Recupera la connection string Postgres da secrets/env
-db_url = (
-    st.secrets.get("POSTGRES_URL") or st.secrets.get("postgres_url")
-    or os.environ.get("POSTGRES_URL") or os.environ.get("postgres_url")
-)
+# --- Lettura classifica dalle VIEW del DB (solo Supabase client) ---
+def read_classifica_from_views(supabase, girone: str) -> pd.DataFrame:
+    if not supabase:
+        st.error("Supabase non configurato: controlla SUPABASE_URL e SUPABASE_ANON_KEY.")
+        return pd.DataFrame()
 
-# Piccola diagnostica: utile per capire se stai puntando al DB giusto
-st.write("DB:", db_url[:40] + "..." if db_url else "❌ mancante")
-
-# Carica la classifica dalla VIEW in base al girone selezionato
-if not db_url:
-    st.error("Configura POSTGRES_URL (o postgres_url) in Render/Secrets per leggere la classifica dal DB.")
-    df_classifica = pd.DataFrame()
-else:
-    engine = create_engine(db_url)
-    tab_view = "classifica_top" if girone.lower() == "top" else "classifica_advanced"
+    view_name = "classifica_top" if girone == "Top" else "classifica_advanced"
     try:
-        with engine.connect() as conn:
-            df_classifica = pd.read_sql(
-                f"""
-                SELECT nome, punti, vinte, perse, set_vinti, set_persi, diff_set, games_vinti, games_persi
-                FROM public.{tab_view}
-                ORDER BY punti DESC, nome;
-                """,
-                conn
-            )
+        resp = supabase.table(view_name).select("*")\
+            .order("punti", desc=True).order("nome").execute()
+        return pd.DataFrame(resp.data or [])
     except Exception as e:
-        st.error(f"Errore nel leggere la VIEW di classifica '{tab_view}': {e}")
-        df_classifica = pd.DataFrame()
+        st.error(f"Errore nel leggere la classifica ({view_name}) via Supabase: {e}")
+        return pd.DataFrame()
+
+# Leggi la classifica del girone selezionato
+df_classifica = read_classifica_from_views(supabase, girone)
+
+ 
 
 # ✅ Svuota la cache appena entri nella sezione (temporaneo, utile oggi per pulire i dati vecchi)
 import streamlit as st
