@@ -202,6 +202,54 @@ if submitted:
             winner = p2
             points_p1, points_p2 = (1, 3) if (sets_p1 == 1 and sets_p2 == 2) else (0, 3)
 
+       
+if submitted:
+    # Validazioni base
+    if p1 == p2:
+        st.error("I due giocatori devono essere diversi.")
+        st.stop()
+    else:
+        # --- Validazioni numeriche sui set ---
+        try:
+            set1_p1, set1_p2 = int(set1_p1), int(set1_p2)
+            set2_p1, set2_p2 = int(set2_p1), int(set2_p2)
+            # Terzo set: se vuoto/None, salviamo 0
+            s3p1_to_save = int(set3_p1) if str(set3_p1).strip() not in ("", "None") else 0
+            s3p2_to_save = int(set3_p2) if str(set3_p2).strip() not in ("", "None") else 0
+        except ValueError:
+            st.error("I punteggi dei set devono essere numeri interi.")
+            st.stop()
+
+        # --- Calcolo set vinti dopo i primi due set ---
+        set1_w_p1 = 1 if set1_p1 > set1_p2 else 0
+        set1_w_p2 = 1 if set1_p2 > set1_p1 else 0
+        set2_w_p1 = 1 if set2_p1 > set2_p2 else 0
+        set2_w_p2 = 1 if set2_p2 > set2_p1 else 0
+
+        sets_p1 = set1_w_p1 + set2_w_p1
+        sets_p2 = set1_w_p2 + set2_w_p2
+
+        # --- Con 1–1 dopo due set, serve il 3° set / super tie-break ---
+        third_played = (s3p1_to_save > 0 or s3p2_to_save > 0)
+        if sets_p1 == 1 and sets_p2 == 1 and not third_played:
+            st.error("Con 1–1 dopo due set, devi inserire il 3° set (o il super tie-break).")
+            st.stop()
+
+        # --- Se è stato giocato il 3° set/super TB, aggiorna i set vinti ---
+        if third_played:
+            set3_w_p1 = 1 if s3p1_to_save > s3p2_to_save else 0
+            set3_w_p2 = 1 if s3p2_to_save > s3p1_to_save else 0
+            sets_p1 += set3_w_p1
+            sets_p2 += set3_w_p2
+
+        # --- Determina winner e punti 3–1–0 ---
+        if sets_p1 > sets_p2:
+            winner = p1
+            points_p1, points_p2 = (3, 0) if (sets_p1 == 2 and sets_p2 == 0) else (3, 1)
+        else:
+            winner = p2
+            points_p1, points_p2 = (1, 3) if (sets_p1 == 1 and sets_p2 == 2) else (0, 3)
+
         # --- Salvataggio su Supabase ---
         try:
             data = {
@@ -230,59 +278,7 @@ if submitted:
                 st.experimental_rerun()
 
         except Exception as e:
-            st.error(f"Errore durante il salvataggio su Supabase: {e}")
-
-
-
-
-        # --- Calcolo set vinti dopo i primi due set ---
-        set1_w_p1 = 1 if set1_p1 > set1_p2 else 0
-        set1_w_p2 = 1 if set1_p2 > set1_p1 else 0
-        set2_w_p1 = 1 if set2_p1 > set2_p2 else 0
-        set2_w_p2 = 1 if set2_p2 > set2_p1 else 0
-
-        sets_p1 = set1_w_p1 + set2_w_p1
-        sets_p2 = set1_w_p2 + set2_w_p2
-
-        # --- Con 1–1 dopo due set, serve il 3° set / super tie-break ---
-        third_played = (s3p1_to_save > 0 or s3p2_to_save > 0)
-        if sets_p1 == 1 and sets_p2 == 1 and not third_played:
-            st.error("Con 1–1 dopo due set, devi inserire il 3° set (o il super tie-break).")
-            st.stop()
-
-        # --- Se è stato giocato il 3° set/super TB, aggiorna i set vinti ---
-        if third_played:
-            # nel super tie-break vince chi ha più punti; nel set normale idem
-            set3_w_p1 = 1 if s3p1_to_save > s3p2_to_save else 0
-            set3_w_p2 = 1 if s3p2_to_save > s3p1_to_save else 0
-            sets_p1 += set3_w_p1
-            sets_p2 += set3_w_p2
-
-        # --- Determina winner e punti 3–1–0 ---
-        if sets_p1 > sets_p2:
-            winner = p1
-            points_p1, points_p2 = (3, 0) if (sets_p1 == 2 and sets_p2 == 0) else (3, 1)
-        else:
-            winner = p2
-            points_p1, points_p2 = (1, 3) if (sets_p1 == 1 and sets_p2 == 2) else (0, 3)
-
-        # --- Salvataggio su Supabase ---
-        try:
-            data = {
-                "girone": girone_selezionato,   # oppure "Top"
-                "player1": p1,
-                "player2": p2,
-                "set1_p1": set1_p1, "set1_p2": set1_p2,
-                "set2_p1": set2_p1, "set2_p2": set2_p2,
-                "set3_p1": s3p1_to_save, "set3_p2": s3p2_to_save,
-                "is_super_tb": bool(is_super_tb),
-                "winner": winner,
-                "points_p1": points_p1, "points_p2": points_p2,
-            }
-
-            res = supabase.table("matches").insert(data).execute()
-            st.success("Partita salvata su Supabase! ✅")
-
+           
             # Aggiorna subito la UI
             try:
                 st.cache_data.clear()
@@ -296,23 +292,7 @@ if submitted:
         except Exception as e:
             st.error(f"Errore durante il salvataggio su Supabase: {e}")
 
-        # --- Salvataggio su Supabase ---
-        try:
-            data = {
-                "girone": girone_selezionato,   # oppure "Top"
-                "player1": p1,
-                "player2": p2,
-                "set1_p1": set1_p1, "set1_p2": set1_p2,
-                "set2_p1": set2_p1, "set2_p2": set2_p2,
-                "set3_p1": s3p1_to_save, "set3_p2": s3p2_to_save,
-                "is_super_tb": bool(is_super_tb),
-                "winner": winner,
-                "points_p1": points_p1, "points_p2": points_p2,
-            }
-
-            res = supabase.table("matches").insert(data).execute()
-            st.success("Partita salvata su Supabase! ✅")
-
+       
             # Aggiorna subito la UI
             try:
                 st.cache_data.clear()
