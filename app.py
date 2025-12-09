@@ -206,18 +206,20 @@ if submitted:
         # --- Salvataggio su Supabase ---
         try:
             data = {
-                "girone": girone_selezionato,   # es. "Top" o "Advanced"
+                "girone": girone_selezionato,   # oppure "Top"
                 "player1": p1,
                 "player2": p2,
                 "set1_p1": set1_p1, "set1_p2": set1_p2,
                 "set2_p1": set2_p1, "set2_p2": set2_p2,
                 "set3_p1": s3p1_to_save, "set3_p2": s3p2_to_save,
                 "is_super_tb": bool(is_super_tb),
-                "winner": winner,               # usa il nome (p1/p2), NON la stringa "player1"
+                "winner": winner,
                 "points_p1": points_p1, "points_p2": points_p2,
             }
+
             res = supabase.table("matches").insert(data).execute()
             st.success("Partita salvata su Supabase! ✅")
+
             # Aggiorna subito la UI
             try:
                 st.cache_data.clear()
@@ -227,9 +229,41 @@ if submitted:
                 st.rerun()
             except Exception:
                 st.experimental_rerun()
+
         except Exception as e:
             st.error(f"Errore durante il salvataggio su Supabase: {e}")
 
+        # --- Salvataggio su Supabase ---
+        try:
+            data = {
+                "girone": girone_selezionato,   # oppure "Top"
+                "player1": p1,
+                "player2": p2,
+                "set1_p1": set1_p1, "set1_p2": set1_p2,
+                "set2_p1": set2_p1, "set2_p2": set2_p2,
+                "set3_p1": s3p1_to_save, "set3_p2": s3p2_to_save,
+                "is_super_tb": bool(is_super_tb),
+                "winner": winner,
+                "points_p1": points_p1, "points_p2": points_p2,
+            }
+
+            res = supabase.table("matches").insert(data).execute()
+            st.success("Partita salvata su Supabase! ✅")
+
+            # Aggiorna subito la UI
+            try:
+                st.cache_data.clear()
+            except Exception:
+                pass
+            try:
+                st.rerun()
+            except Exception:
+                st.experimental_rerun()
+
+        except Exception as e:
+            st.error(f"Errore durante il salvataggio su Supabase: {e}")
+
+        
     st.success("Partita salvata! ✅")
 
     # Ricarico immediato (classifica senza bottone)
@@ -247,22 +281,7 @@ except Exception as e:
 
 
 
-# ---- Salvataggio partita su Supabase ----
-if supabase:
-    try:
-        res = supabase.table("matches").insert({
-            "girone": girone,
-            "player1": player1,
-            "player2": player2,
-            "winner": winner,
-            "points_p1": points_p1,
-            "points_p2": points_p2,
-            "set1_p1": set1_p1, "set1_p2": set1_p2,
-            "set2_p1": set2_p1, "set2_p2": set2_p2,
-            "set3_p1": set3_p1, "set3_p2": set3_p2,
-        }).execute()
 
-        st.success("Partita salvata! ✅")
 
         # ✅ invalida cache delle classifiche e ricarica
         st.cache_data.clear()
