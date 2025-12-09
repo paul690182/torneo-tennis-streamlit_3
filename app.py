@@ -246,17 +246,24 @@ with st.form("match_form", clear_on_submit=True):
 
 
 # --- Classifica aggiornata (solo VIEW) ---
-st.subheader("🏆 Classifica aggiornata")
+st.subheader("📈 Classifica aggiornata")
+
 if df_classifica.empty:
     st.info("Nessuna riga in classifica per questo girone (inserisci una partita per iniziare).")
 else:
     st.dataframe(df_classifica, use_container_width=True)
 
+# separatore e nota sulle VIEW (fuori dal blocco if/else → allineato a sinistra)
 st.divider()
 st.markdown("ℹ️ La classifica è calcolata dal DB (VIEW). Il 3° set può essere un **super tie-break a 10 punti** (es. 10–8).")
 
-
+# seconda tabella: standings_df (se presente). Allineata a sinistra (fuori da if/else).
+if 'standings_df' in locals() and standings_df is not None and getattr(standings_df, 'empty', False) is False:
     st.dataframe(standings_df, use_container_width=True)
+
+st.divider()
+st.markdown("ℹ️ Il 3° set può essere giocato come **super tie-break a 10 punti**. L’app assegna il set al giocatore con più punti nel TB10.")
+
 
 st.divider()
 st.markdown("ℹ️ Il 3° set può essere giocato come **super tie-break a 10 punti**. L’app assegna il set al giocatore con più punti nel TB10.")
