@@ -206,6 +206,8 @@ with st.form("match_form", clear_on_submit=True):
                     }
 
                     
+
+# ---- Salvataggio partita su Supabase ----
 if supabase:
     try:
         res = supabase.table("matches").insert(payload).execute()
@@ -219,9 +221,8 @@ if supabase:
 
     except Exception as e:
         st.error(f"Errore durante il salvataggio su Supabase: {e}")
-
-                    else:
-                        st.warning("Supabase non configurato: la partita non è stata salvata. Configura .env e ricarica l'app.")
+else:
+    st.warning("Supabase non configurato: la partita non è stata salvata. Configura .env e ricarica l'app.")
 
 
 # --- Classifica aggiornata (solo VIEW) ---
