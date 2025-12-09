@@ -119,17 +119,7 @@ df_classifica = read_classifica_from_views(supabase, girone)
 import streamlit as st
 st.cache_data.clear()
 
-# ✅ Pulsante in sidebar per forzare l'aggiornamento
 
-
-with st.sidebar:
-    if st.button("🔄 Aggiorna classifica"):
-        st.cache_data.clear()
-        # Rerun compatibile con tutte le versioni di Streamlit
-        try:
-            st.rerun()  # Streamlit recente (>= 1.24)
-        except AttributeError:
-            st.experimental_rerun()  # fallback per versioni più vecchie
 
 
 st.title("🎾 Torneo Tennis — Inserimento & Classifica")
