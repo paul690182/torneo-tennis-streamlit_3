@@ -237,3 +237,8 @@ else:
             "Vittorie": wins.get(pl, 0),
         })
     standings_df = pd.DataFrame(rows).sort_values(["Punti", "Vittorie"], ascending=[False, False]).reset_index(drop=True)
+
+    st.dataframe(standings_df, use_container_width=True)
+
+st.divider()
+st.markdown("ℹ️ Il 3° set può essere giocato come **super tie-break a 10 punti**. L’app assegna il set al giocatore con più punti nel TB10.")
