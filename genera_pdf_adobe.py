@@ -33,7 +33,8 @@ def is_tb(score):
             return True
     return False
 
-df["is_tb"] = df["risultato"].apply(is_tb)
+# df["is_tb"] = df["risultato"].apply(is_tb)
+
 
 # =============================================================
 #   2. CALCOLO STATISTICHE
