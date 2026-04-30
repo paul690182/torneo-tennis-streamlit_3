@@ -23,7 +23,7 @@ CSV = "app_updated_partite.csv"
 df = pd.read_csv(CSV)
 
 # normalizzazione colonne
-df["date"] = df["created_at"].astype(str).str.slice(0,10)
+# df["date"] = df["created_at"].astype(str).str.slice(0,10)
 
 # detezione Tie-break
 pat = re.compile(r"(\d+)-(\d+)")
