@@ -1,6 +1,8 @@
+import streamlit as st
 import subprocess
 import os
 
+# --- GENERA PDF ---
 if st.button("📄 Genera PDF V13 MASTER"):
     try:
         subprocess.run(["python", "genera_pdf_adobe.py"], check=True)
@@ -8,6 +10,7 @@ if st.button("📄 Genera PDF V13 MASTER"):
     except Exception as e:
         st.error(f"Errore: {e}")
 
+# --- SCARICA PDF ---
 if os.path.exists("SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf"):
     with open("SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf", "rb") as f:
         st.download_button(
