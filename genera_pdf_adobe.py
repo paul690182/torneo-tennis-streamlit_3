@@ -19,7 +19,7 @@ from reportlab.lib.units import cm
 #   1. CARICAMENTO DATI CSV
 # =============================================================
 
-CSV = "Supabase Snippet Matches Export View (3).csv"
+CSV = "app_updated_partite.csv"
 df = pd.read_csv(CSV)
 
 # normalizzazione colonne
