@@ -7,8 +7,17 @@ PDF_FILE = "SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf"
 # ---------- FUNZIONE GENERAZIONE ----------
 def genera_pdf():
     try:
-        subprocess.run(["python3", "genera_pdf_adobe.py"], check=True)
-        return True
+        result = subprocess.run(
+            ["python3", "genera_pdf_adobe.py"],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0:
+            return True
+        else:
+            return result.stderr
+
     except Exception as e:
         return str(e)
 
@@ -24,7 +33,8 @@ def mostra_pdf_ui():
         if result == True:
             st.success("✅ PDF generato!")
         else:
-            st.error(f"Errore: {result}")
+            st.error("❌ Errore durante la generazione PDF:")
+            st.code(result)   # 👉 QUI VEDI ERRORE VERO
 
     # Pulsante download
     if os.path.exists(PDF_FILE):
@@ -34,4 +44,6 @@ def mostra_pdf_ui():
                 f,
                 file_name="torneo_V13_MASTER.pdf",
                 mime="application/pdf"
+            )
+``
             )
