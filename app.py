@@ -242,3 +242,6 @@ else:
 
 st.divider()
 st.markdown("ℹ️ Il 3° set può essere giocato come **super tie-break a 10 punti**. L’app assegna il set al giocatore con più punti nel TB10.")
+from genera_v13_master import mostra_pdf_ui
+
+mostra_pdf_ui()
