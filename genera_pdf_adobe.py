@@ -10,7 +10,8 @@ PDF_FILE = "SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf"
 
 # --- LETTURA CSV ---
 df = pd.read_csv(CSV)
-
+print("COLONNE:", df.columns.tolist())
+print("DATI:", df.head())
 # --- DEBUG COLONNE ---
 print("Colonne CSV:", list(df.columns))
 
