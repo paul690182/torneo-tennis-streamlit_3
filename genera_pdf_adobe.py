@@ -15,8 +15,7 @@ df = pd.read_csv(CSV, sep=";")
 df.columns = df.columns.str.strip().str.lower()
 
 # --- DEBUG MINIMO (solo per capire) ---
-import streamlit as st
-st.write("COLONNE REALI:", df.columns.tolist())
+print("COLONNE REALI:", df.columns.tolist())
 
 # --- MAPPATURA AUTOMATICA ---
 cols = list(df.columns)
