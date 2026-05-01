@@ -39,12 +39,9 @@ players = list(set([p.strip() for p in players if p.strip() != ""]))
 # --- STATS ---
 stats = []
 
-for p in players:giocate = len(df[(df[col1] == p) | (df[col2] == p)])
-
-    if winner_col and winner_col in df.columns:
-        vinte = len(df[df[winner_col] == p])
-    else:
-        vinte = 0
+for p in players:
+    giocate = len(df[(df[col1] == p) | (df[col2] == p)])
+    vinte = 0
 
     stats.append([p, giocate, vinte])
 
