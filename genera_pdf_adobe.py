@@ -9,7 +9,7 @@ CSV = "app_updated_partite.csv"
 PDF_FILE = "SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf"
 
 # --- LETTURA CSV ---
-df = pd.read_csv(CSV, sep=None, engine="python")
+df = pd.read_csv(CSV, sep=";")
 print("COLONNE:", list(df.columns))
 print("RIGHE:")
 print(df.head(10))
