@@ -21,8 +21,8 @@ print("Colonne CSV:", list(df.columns))
 # --- MAPPATURA AUTOMATICA ---
 cols = list(df.columns)
 # --- TROVA AUTOMATICO LE COLONNE GIOCATORI ---
-player1_col = [c for c in cols if "1" in c.lower() or "p1" in c.lower()][0]
-player2_col = [c for c in cols if "2" in c.lower() or "p2" in c.lower()][0]
+player1_col = "player1"
+player2_col = "player2"
 
 # --- TROVA EVENTUALE WINNER ---
 winner_candidates = [c for c in cols if "win" in c.lower()]
