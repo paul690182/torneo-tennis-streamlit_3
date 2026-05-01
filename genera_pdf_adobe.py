@@ -9,7 +9,7 @@ CSV = "app_updated_partite.csv"
 PDF_FILE = "SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf"
 
 # --- LETTURA CSV ---
-df = pd.read_csv(CSV, sep=";")
+df = pd.read_csv(CSV, sep=None, engine="python")
 
 # --- NORMALIZZA COLONNE ---
 df.columns = df.columns.str.strip().str.lower()
