@@ -20,8 +20,13 @@ print("Colonne CSV:", list(df.columns))
 
 # --- MAPPATURA AUTOMATICA ---
 cols = list(df.columns)
-player1_col = cols[0]
-player2_col = cols[1]
+# --- TROVA AUTOMATICO LE COLONNE GIOCATORI ---
+player1_col = [c for c in cols if "1" in c.lower() or "p1" in c.lower()][0]
+player2_col = [c for c in cols if "2" in c.lower() or "p2" in c.lower()][0]
+
+# --- TROVA EVENTUALE WINNER ---
+winner_candidates = [c for c in cols if "win" in c.lower()]
+winner_col = winner_candidates[0] if winner_candidates else None
 
 styles = getSampleStyleSheet()
 
