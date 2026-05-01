@@ -75,7 +75,7 @@ elements.append(Spacer(1,20))
 # Storico (prime 30 righe)
 elements.append(Paragraph("Storico Partite", styles["Heading2"]))
 
-storico = df[[player1_col, player2_col]].values.tolist()
+storico = df[[col1, col2]].values.tolist()
 storico = [["P1", "P2"]] + storico[:30]
 
 table2 = Table(storico)
