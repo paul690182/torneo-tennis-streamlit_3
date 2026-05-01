@@ -23,16 +23,14 @@ col2 = df.columns[1]
 
 
 # --- TROVA EVENTUALE WINNER ---
-winner_candidates = [c for c in cols if "win" in c.lower()]
-winner_col = winner_candidates[0] if winner_candidates else None
+winner_col = None
 
 styles = getSampleStyleSheet()
 
 # --- LISTA GIOCATORI ---
 # --- PLAYERS (FIX DEFINITIVO) ---
 # PRENDE LE PRIME DUE COLONNE DEL CSV (SOLUZIONE DEFINITIVA)
-col1 = df.columns[0]
-col2 = df.columns[1]
+
 
 players = list(df[col1].dropna().astype(str)) + list(df[col2].dropna().astype(str))
 players = list(set([p.strip() for p in players if p.strip() != ""]))
