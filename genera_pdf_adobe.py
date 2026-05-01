@@ -46,7 +46,7 @@ for p in players:
 # --- CLASSIFICA ---
 df_classifica = pd.DataFrame(stats, columns=["Giocatore", "Giocate", "Vinte"])
 df_classifica = df_classifica.sort_values(by="Giocate", ascending=False)
-``
+
 
 # --- PDF ---
 doc = SimpleDocTemplate(PDF_FILE, pagesize=A4)
