@@ -26,19 +26,27 @@ player2_col = cols[1]
 styles = getSampleStyleSheet()
 
 # --- LISTA GIOCATORI ---
-players = sorted(set(df[player1_col]).union(df[player2_col]))
+# --- PLAYERS (FIX DEFINITIVO) ---
+players = list(df[player1_col].dropna().astype(str)) + list(df[player2_col].dropna().astype(str))
+players = list(set([p.strip() for p in players if p.strip() != ""]))
 
-# --- CALCOLO CLASSIFICA BASE ---
+# --- STATS ---
 stats = []
 
 for p in players:
     giocate = len(df[(df[player1_col] == p) | (df[player2_col] == p)])
-    vinte = len(df[df.iloc[:,2] == p]) if len(cols) > 2 else 0
-    
+
+    if winner_col and winner_col in df.columns:
+        vinte = len(df[df[winner_col] == p])
+    else:
+        vinte = 0
+
     stats.append([p, giocate, vinte])
 
+# --- CLASSIFICA ---
 df_classifica = pd.DataFrame(stats, columns=["Giocatore", "Giocate", "Vinte"])
-df_classifica = df_classifica.sort_values(by="Vinte", ascending=False)
+df_classifica = df_classifica.sort_values(by="Giocate", ascending=False)
+``
 
 # --- PDF ---
 doc = SimpleDocTemplate(PDF_FILE, pagesize=A4)
