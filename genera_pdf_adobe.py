@@ -16,12 +16,11 @@ df.columns = df.columns.str.strip().str.lower()
 
 # --- DEBUG MINIMO (solo per capire) ---
 print("COLONNE REALI:", df.columns.tolist())
+# --- USA SEMPRE LE PRIME DUE COLONNE DEL CSV ---
+col1 = df.columns[0]
+col2 = df.columns[1]
 
-# --- MAPPATURA AUTOMATICA ---
-cols = list(df.columns)
-# --- TROVA AUTOMATICO LE COLONNE GIOCATORI ---
-player1_col = "player1"
-player2_col = "player2"
+
 
 # --- TROVA EVENTUALE WINNER ---
 winner_candidates = [c for c in cols if "win" in c.lower()]
@@ -31,14 +30,16 @@ styles = getSampleStyleSheet()
 
 # --- LISTA GIOCATORI ---
 # --- PLAYERS (FIX DEFINITIVO) ---
-players = list(df[player1_col].dropna().astype(str)) + list(df[player2_col].dropna().astype(str))
-players = list(set([p.strip() for p in players if p.strip() != ""]))
+# PRENDE LE PRIME DUE COLONNE DEL CSV (SOLUZIONE DEFINITIVA)
+col1 = df.columns[0]
+col2 = df.columns[1]
 
+players = list(df[col1].dropna().astype(str)) + list(df[col2].dropna().astype(str))
+players = list(set([p.strip() for p in players if p.strip() != ""]))
 # --- STATS ---
 stats = []
 
-for p in players:
-    giocate = len(df[(df[player1_col] == p) | (df[player2_col] == p)])
+for p in players:giocate = len(df[(df[col1] == p) | (df[col2] == p)])
 
     if winner_col and winner_col in df.columns:
         vinte = len(df[df[winner_col] == p])
@@ -50,6 +51,7 @@ for p in players:
 # --- CLASSIFICA ---
 df_classifica = pd.DataFrame(stats, columns=["Giocatore", "Giocate", "Vinte"])
 df_classifica = df_classifica.sort_values(by="Giocate", ascending=False)
+
 
 
 # --- PDF ---
