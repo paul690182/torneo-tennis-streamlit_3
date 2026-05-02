@@ -4,13 +4,21 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
+from supabase import create_client
+import os
 
 # --- FILE ---
 CSV = "app_updated_partite.csv"
 PDF_FILE = "SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf"
 
-# --- LETTURA CSV ---
-df = pd.read_csv(CSV, sep=None, engine="python")
+# --- LETTURA DATI DA SUPABASE ---
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+response = supabase.table("matches").select("*").execute()
+df = pd.DataFrame(response.data)
 
 # --- NORMALIZZA COLONNE ---
 df.columns = df.columns.str.strip().str.lower()
