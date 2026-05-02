@@ -29,8 +29,9 @@ print(df.head(10))
 # --- DEBUG MINIMO (solo per capire) ---
 print("COLONNE REALI:", df.columns.tolist())
 # --- USA SEMPRE LE PRIME DUE COLONNE DEL CSV ---
-col1 = df.columns[0]
-col2 = df.columns[1]
+col1 = "player1"
+col2 = "player2"
+
 
 
 
