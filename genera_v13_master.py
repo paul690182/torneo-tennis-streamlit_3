@@ -4,21 +4,26 @@ import os
 
 PDF_FILE = "SUPER_FULL_ADOBE_REV02_AGGIORNATO.pdf"
 
+import subprocess
+import streamlit as st
+
 def genera_pdf():
-    try:
-        result = subprocess.run(
-            ["python3", "genera_pdf_adobe.py"],
-            capture_output=True,
-            text=True
-        )
+    result = subprocess.run(
+        ["python3", "genera_pdf_adobe.py"],
+        capture_output=True,
+        text=True
+    )
 
-        if result.returncode == 0:
-            return True
-        else:
-            return result.stderr
+    if result.stdout:
+        st.code(result.stdout)
 
-    except Exception as e:
-        return str(e)
+    if result.stderr:
+        st.code(result.stderr)
+
+    if result.returncode == 0:
+        return True
+    else:
+        return False
 
 def mostra_pdf_ui():
     st.divider()
