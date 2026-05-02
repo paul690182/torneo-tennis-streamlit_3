@@ -54,7 +54,7 @@ for p in players:
     giocate = len(df[(df[col1] == p) | (df[col2] == p)])
     vinte = len(df[df["vincitore"] == p])
     stats.append([p, giocate, vinte])
-``
+
 
     stats.append([p, giocate, vinte])
 
