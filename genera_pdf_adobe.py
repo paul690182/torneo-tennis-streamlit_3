@@ -50,19 +50,33 @@ players = list(set([p.strip() for p in players if p.strip() != ""]))
 # --- STATS ---
 stats = []
 
+# --- STATS ---
+stats = []
+
 for p in players:
-    giocate = len(df[(df[col1] == p) | (df[col2] == p)])
-    vinte = len(df[df["vincitore"] == p])
-    stats.append([p, giocate, vinte])
+    # partite giocate
+    giocate = len(df[(df["player1"] == p) | (df["player2"] == p)])
 
+    # vittorie
+    vinte = len(df[df["winner"] == p])
 
-    stats.append([p, giocate, vinte])
+    # punti (già calcolati in Supabase)
+    punti = (
+        df.loc[df["player1"] == p, "points_p1"].sum() +
+        df.loc[df["player2"] == p, "points_p2"].sum()
+    )
 
+    stats.append([p, giocate, vinte, punti])
 # --- CLASSIFICA ---
-df_classifica = pd.DataFrame(stats, columns=["Giocatore", "Giocate", "Vinte"])
-df_classifica = df_classifica.sort_values(by="Giocate", ascending=False)
+df_classifica = pd.DataFrame(
+    stats,
+    columns=["Giocatore", "Giocate", "Vinte", "Punti"]
+)
 
-
+df_classifica = df_classifica.sort_values(
+    by=["Punti", "Vinte", "Giocate"],
+    ascending=[False, False, True]
+)
 
 # --- PDF ---
 doc = SimpleDocTemplate(PDF_FILE, pagesize=A4)
