@@ -80,8 +80,73 @@ for p in players:
 
     # differenza giochi
     dg = gf - gs
+# set vinti
+sv = (
+    df.loc[df["player1"] == p, ["set1_p1","set2_p1","set3_p1"]]
+    .gt(df.loc[df["player1"] == p, ["set1_p2","set2_p2","set3_p2"]].values)
+    .sum().sum()
+    +
+    df.loc[df["player2"] == p, ["set1_p2","set2_p2","set3_p2"]]
+    .gt(df.loc[df["player2"] == p, ["set1_p1","set2_p1","set3_p1"]].values)
+    .sum().sum()
+)
 
-    stats.append([p, giocate, vinte, sconfitte, punti, gf, gs, dg])
+# set persi
+sp = (
+    df.loc[df["player1"] == p, ["set1_p2","set2_p2","set3_p2"]]
+    .gt(df.loc[df["player1"] == p, ["set1_p1","set2_p1","set3_p1"]].values)
+    .sum().sum()
+    +
+    df.loc[df["player2"] == p, ["set1_p1","set2_p1","set3_p1"]]
+    .gt(df.loc[df["player2"] == p, ["set1_p2","set2_p2","set3_p2"]].values)
+    .sum().sum()
+)
+# differenza giochi
+dg = gf - gs
+
+# ✅ QUI INSERISCI SV / SP
+# set vinti e persi
+sv = 0
+sp = 0
+
+for _, row in df.iterrows():
+
+    if row["player1"] == p or row["player2"] == p:
+
+        def check_set(a, b):
+            if pd.isna(a) or pd.isna(b):
+                return (0, 0)
+            if a > b:
+                return (1, 0)
+            elif b > a:
+                return (0, 1)
+            return (0, 0)
+
+        # player1
+        if row["player1"] == p:
+            for s1, s2 in [
+                ("set1_p1", "set1_p2"),
+                ("set2_p1", "set2_p2"),
+                ("set3_p1", "set3_p2")
+            ]:
+                v, p_ = check_set(row[s1], row[s2])
+                sv += v
+                sp += p_
+
+        # player2
+        if row["player2"] == p:
+            for s1, s2 in [
+                ("set1_p2", "set1_p1"),
+                ("set2_p2", "set2_p1"),
+                ("set3_p2", "set3_p1")
+            ]:
+                v, p_ = check_set(row[s1], row[s2])
+                sv += v
+                sp += p_
+
+# ✅ POI APPEND
+stats.append([p, giocate, vinte, sconfitte, punti, gf, gs, dg, sv, sp])
+    stats.append([p, giocate, vinte, sconfitte, punti, gf, gs, dg, sv, sp])
 
 
 # --- CLASSIFICA ---
