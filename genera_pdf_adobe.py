@@ -49,81 +49,77 @@ players = list(set([p.strip() for p in players if p.strip() != ""]))
 stats = []
 
 for p in players:
-    # giocate
+
     giocate = len(df[(df["player1"] == p) | (df["player2"] == p)])
 
-    # vinte
     vinte = len(df[df["winner"] == p])
 
-    # sconfitte
     sconfitte = giocate - vinte
 
-    # punti
     punti = (
         df.loc[df["player1"] == p, "points_p1"].sum() +
         df.loc[df["player2"] == p, "points_p2"].sum()
     )
 
-    # giochi fatti
     gf = (
         df.loc[df["player1"] == p, ["set1_p1","set2_p1","set3_p1"]].fillna(0).sum().sum()
         +
         df.loc[df["player2"] == p, ["set1_p2","set2_p2","set3_p2"]].fillna(0).sum().sum()
     )
 
-    # giochi subiti
     gs = (
         df.loc[df["player1"] == p, ["set1_p2","set2_p2","set3_p2"]].fillna(0).sum().sum()
         +
         df.loc[df["player2"] == p, ["set1_p1","set2_p1","set3_p1"]].fillna(0).sum().sum()
     )
 
-# differenza giochi
-dg = gf - gs
+    dg = gf - gs
 
-# set vinti/persi
-sv = 0
-sp = 0
+    sv = 0
+    sp = 0
 
-for _, row in df.iterrows():
-
-    if row["player1"] == p or row["player2"] == p:
-
-        def check_set(a, b):
-            import pandas as pd
-            if pd.isna(a) or pd.isna(b):
-                return (0, 0)
-            if a > b:
-                return (1, 0)
-            elif b > a:
-                return (0, 1)
-            return (0, 0)
+    for _, row in df.iterrows():
 
         if row["player1"] == p:
-            for s1, s2 in [
-                ("set1_p1", "set1_p2"),
-                ("set2_p1", "set2_p2"),
-                ("set3_p1", "set3_p2")
-            ]:
-                v, p_ = check_set(row[s1], row[s2])
-                sv += v
-                sp += p_
+            if pd.notna(row["set1_p1"]) and pd.notna(row["set1_p2"]):
+                if row["set1_p1"] > row["set1_p2"]:
+                    sv += 1
+                elif row["set1_p2"] > row["set1_p1"]:
+                    sp += 1
+
+            if pd.notna(row["set2_p1"]) and pd.notna(row["set2_p2"]):
+                if row["set2_p1"] > row["set2_p2"]:
+                    sv += 1
+                elif row["set2_p2"] > row["set2_p1"]:
+                    sp += 1
+
+            if pd.notna(row["set3_p1"]) and pd.notna(row["set3_p2"]):
+                if row["set3_p1"] > row["set3_p2"]:
+                    sv += 1
+                elif row["set3_p2"] > row["set3_p1"]:
+                    sp += 1
 
         if row["player2"] == p:
-            for s1, s2 in [
-                ("set1_p2", "set1_p1"),
-                ("set2_p2", "set2_p1"),
-                ("set3_p2", "set3_p1")
-            ]:
-                v, p_ = check_set(row[s1], row[s2])
-                sv += v
-                sp += p_
+            if pd.notna(row["set1_p2"]) and pd.notna(row["set1_p1"]):
+                if row["set1_p2"] > row["set1_p1"]:
+                    sv += 1
+                elif row["set1_p1"] > row["set1_p2"]:
+                    sp += 1
 
-# ✅ append fuori dal loop interno
+            if pd.notna(row["set2_p2"]) and pd.notna(row["set2_p1"]):
+                if row["set2_p2"] > row["set2_p1"]:
+                    sv += 1
+                elif row["set2_p1"] > row["set2_p2"]:
+                    sp += 1
 
+            if pd.notna(row["set3_p2"]) and pd.notna(row["set3_p1"]):
+                if row["set3_p2"] > row["set3_p1"]:
+                    sv += 1
+                elif row["set3_p1"] > row["set3_p2"]:
+                    sp += 1
 
-# ✅ POI APPEND
-stats.append([p, giocate, vinte, sconfitte, punti, gf, gs, dg, sv, sp])
+    stats.append([p, giocate, vinte, sconfitte, punti, gf, gs, dg, sv, sp])
+
    
 
 
