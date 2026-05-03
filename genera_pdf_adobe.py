@@ -58,7 +58,7 @@ for p in players:
     # sconfitte
     sconfitte = giocate - vinte
 
-    # punti (già calcolati in Supabase)
+    # punti
     punti = (
         df.loc[df["player1"] == p, "points_p1"].sum() +
         df.loc[df["player2"] == p, "points_p2"].sum()
@@ -84,17 +84,20 @@ for p in players:
     stats.append([p, giocate, vinte, sconfitte, punti, gf, gs, dg])
 
 
-    stats.append([p, giocate, vinte, punti])
 # --- CLASSIFICA ---
 df_classifica = pd.DataFrame(
     stats,
-    columns=["Giocatore", "Giocate", "Vinte", "Punti"]
+    columns=[
+        "Giocatore", "Giocate", "Vinte", "Sconfitte",
+        "Punti", "GF", "GS", "DG"
+    ]
 )
 
 df_classifica = df_classifica.sort_values(
-    by=["Punti", "Vinte", "Giocate"],
-    ascending=[False, False, True]
+    by=["Punti", "DG", "Vinte"],
+    ascending=[False, False, False]
 )
+
 
 # --- PDF ---
 doc = SimpleDocTemplate(PDF_FILE, pagesize=A4)
