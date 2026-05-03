@@ -22,9 +22,7 @@ df = pd.DataFrame(response.data)
 
 # --- NORMALIZZA COLONNE ---
 df.columns = df.columns.str.strip().str.lower()
-print("COLONNE:", df.columns.tolist())
-print("ANTEPRIMA:")
-print(df.head(10))
+
 
 # --- DEBUG MINIMO (solo per capire) ---
 print("COLONNE REALI:", df.columns.tolist())
