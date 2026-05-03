@@ -162,8 +162,14 @@ df_classifica = df_classifica.sort_values(
     by=["Punti", "DG", "Vinte"],
     ascending=[False, False, False]
 )
+# MVP (primo classificato)
+mvp = df_classifica.iloc[0]["Giocatore"]
+# badge podio
+df_classifica = df_classifica.reset_index(drop=True)
 
-
+df_classifica.loc[0, "Giocatore"] = "🥇 " + df_classifica.loc[0, "Giocatore"]
+df_classifica.loc[1, "Giocatore"] = "🥈 " + df_classifica.loc[1, "Giocatore"]
+df_classifica.loc[2, "Giocatore"] = "🥉 " + df_classifica.loc[2, "Giocatore"]
 # --- PDF ---
 doc = SimpleDocTemplate(PDF_FILE, pagesize=A4)
 elements = []
@@ -174,6 +180,9 @@ elements.append(Spacer(1, 20))
 
 # Classifica
 elements.append(Paragraph("Classifica Generale", styles["Heading2"]))
+
+elements.append(Paragraph(f"🏆 MVP TORNEO: {mvp}", styles["Heading2"]))
+elements.append(Spacer(1, 10))
 
 table_data = [df_classifica.columns.tolist()] + df_classifica.values.tolist()
 
