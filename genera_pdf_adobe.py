@@ -50,21 +50,41 @@ players = list(set([p.strip() for p in players if p.strip() != ""]))
 # --- STATS ---
 stats = []
 
-# --- STATS ---
-stats = []
-
 for p in players:
-    # partite giocate
+    # giocate
     giocate = len(df[(df["player1"] == p) | (df["player2"] == p)])
 
-    # vittorie
+    # vinte
     vinte = len(df[df["winner"] == p])
+
+    # sconfitte
+    sconfitte = giocate - vinte
 
     # punti (già calcolati in Supabase)
     punti = (
         df.loc[df["player1"] == p, "points_p1"].sum() +
         df.loc[df["player2"] == p, "points_p2"].sum()
     )
+
+    # giochi fatti
+    gf = (
+        df.loc[df["player1"] == p, ["set1_p1","set2_p1","set3_p1"]].fillna(0).sum().sum()
+        +
+        df.loc[df["player2"] == p, ["set1_p2","set2_p2","set3_p2"]].fillna(0).sum().sum()
+    )
+
+    # giochi subiti
+    gs = (
+        df.loc[df["player1"] == p, ["set1_p2","set2_p2","set3_p2"]].fillna(0).sum().sum()
+        +
+        df.loc[df["player2"] == p, ["set1_p1","set2_p1","set3_p1"]].fillna(0).sum().sum()
+    )
+
+    # differenza giochi
+    dg = gf - gs
+
+    stats.append([p, giocate, vinte, sconfitte, punti, gf, gs, dg])
+
 
     stats.append([p, giocate, vinte, punti])
 # --- CLASSIFICA ---
